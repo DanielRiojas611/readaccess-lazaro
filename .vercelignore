@@ -2,3 +2,5 @@ tests
 .claude
 README.md
 expo.env
+*.local.html
+.env*
