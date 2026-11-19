@@ -51,6 +51,8 @@ export default async function handler(req,res){
     clearTimeout(timeout);
     const data=await upstream.json();
     if(!upstream.ok)return res.status(502).json({error:'El proveedor de IA devolvió un error. Revisa su configuración y saldo.'});
-    return res.status(200).json({answer:data.choices?.[0]?.message?.content||'No pude interpretar la imagen.'});
+    // Algunos modelos abiertos devuelven su razonamiento entre <think>…</think>: nunca se lee en voz alta.
+    const answer=String(data.choices?.[0]?.message?.content||'').replace(/<think>[\s\S]*?(<\/think>|$)/gi,'').trim();
+    return res.status(200).json({answer:answer||'No pude interpretar la imagen.'});
   }catch(e){return res.status(502).json({error:'No fue posible consultar el servicio de IA.'})}
 }
