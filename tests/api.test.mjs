@@ -28,3 +28,10 @@ test('flujo completo con OpenAI simulado: no expone la clave',async()=>{
   assert.equal(r.code,200);assert.equal(r.body.answer,'Veo una mesa.');assert.ok(!JSON.stringify(r.body).includes('sk-test'));
   const p=JSON.parse(sent.opt.body);assert.equal(p.model,'gpt-4.1-mini');assert.equal(p.messages.at(-1).content[1].image_url.detail,'high')});
 test('error del proveedor -> 502 genérico',async()=>{globalThis.fetch=async()=>({ok:false,json:async()=>({error:{message:'insufficient_quota sk-test'}})});const r=await call({headers:{'x-lazaro-pin':'1234'},body:{image:IMG}});assert.equal(r.code,502);assert.ok(!JSON.stringify(r.body).includes('sk-test'))});
+test('proveedor local sin clave (Ollama): sin PIN, URL y modelo configurables',async()=>{
+  delete process.env.OPENAI_API_KEY;delete process.env.LAZARO_ACCESS_PIN;process.env.AI_BASE_URL='http://127.0.0.1:11434/v1/';process.env.AI_MODEL='qwen3-vl:2b';
+  let sent;globalThis.fetch=async(url,opt)=>{sent={url,opt};return {ok:true,json:async()=>({choices:[{message:{content:'Hola'}}]})}};
+  const r=await call({body:{mode:'chat',question:'hola'}});
+  assert.equal(r.code,200);assert.equal(sent.url,'http://127.0.0.1:11434/v1/chat/completions');assert.equal(JSON.parse(sent.opt.body).model,'qwen3-vl:2b');assert.ok(!sent.opt.headers.Authorization);
+  delete process.env.AI_BASE_URL;delete process.env.AI_MODEL});
+test('clave de pago sin PIN -> 503 (nunca queda abierta)',async()=>{process.env.OPENAI_API_KEY='sk-test';delete process.env.LAZARO_ACCESS_PIN;assert.equal((await call({body:{mode:'chat',question:'hola'}})).code,503);delete process.env.OPENAI_API_KEY});

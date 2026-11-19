@@ -2,5 +2,9 @@
   "name": "readaccess-lazaro-2",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/api.test.mjs", "dev": "node tests/dev-server.mjs" }
+  "scripts": {
+    "test": "node --test tests/api.test.mjs",
+    "dev": "node tests/dev-server.mjs",
+    "expo": "node --env-file=expo.env tests/dev-server.mjs"
+  }
 }
