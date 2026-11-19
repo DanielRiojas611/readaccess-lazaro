@@ -1,0 +1,9 @@
+{
+  "name": "ReadAccess — Lázaro",
+  "short_name": "Lázaro",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#071a2b",
+  "theme_color": "#071a2b",
+  "lang": "es"
+}
