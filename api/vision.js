@@ -1,18 +1,51 @@
+// Lázaro — proxy seguro hacia OpenAI. La clave nunca sale del servidor.
+// Modos: explore | read | experience | live | chat (chat permite conversar sin imagen).
+const MODES={
+  explore:{ctx:'Describe de forma útil el entorno, objetos, posiciones aproximadas (reloj o izquierda/derecha) y actividad visible.',tokens:450},
+  read:{ctx:'Prioriza texto legible, respetando su orden.',tokens:700},
+  experience:{ctx:'Describe con sensibilidad y detalle las características perceptibles de la escena sin inventar elementos.',tokens:550},
+  live:{ctx:'Estás narrando en vivo. Responde en una o dos frases cortas. Menciona solo lo nuevo o cambiado respecto a la descripción anterior; si nada relevante cambió responde exactamente "Sin cambios".',tokens:90},
+  chat:{ctx:'Conversa de manera natural y breve. Usa el historial y las notas del usuario como contexto.',tokens:400}
+};
+const SAFETY='Eres Lázaro, asistente en español peruano para personas con pérdida total de visión. Responde de manera directa, precisa y empática. No inventes colores, identidades, señales ni acciones que no puedas verificar. Nunca identifiques a personas por su rostro. Nunca indiques que se puede cruzar una calle, que un trayecto está libre de obstáculos o que una situación es segura. Si no sabes, dilo.';
+const str=(v,max)=>typeof v==='string'?v.slice(0,max):'';
+
+export function buildMessages(body){
+  let {image,question,mode,history,memory,previous}=body||{};
+  if(!MODES[mode])mode='explore';
+  const hasImage=typeof image==='string'&&image.length>0;
+  if(hasImage&&(!/^data:image\/(jpeg|png|webp);base64,/.test(image)||image.length>3500000))return {error:'Imagen inválida o demasiado grande'};
+  if(!hasImage&&mode!=='chat')return {error:'Se necesita una imagen para este modo'};
+  question=str(question,700)||(hasImage?'Describe esta imagen':'');
+  if(!question)return {error:'Pregunta vacía'};
+  let system=SAFETY+' '+MODES[mode].ctx;
+  const notes=Array.isArray(memory)?memory.filter(n=>typeof n==='string').slice(0,10).map(n=>n.slice(0,200)):[];
+  if(notes.length)system+='\nNotas que el usuario pidió recordar (úsalas solo si son pertinentes):\n- '+notes.join('\n- ');
+  if(mode==='live'&&str(previous,600))system+='\nDescripción anterior: '+str(previous,600);
+  const msgs=[{role:'system',content:system}];
+  if(Array.isArray(history))for(const h of history.slice(-8)){
+    if(h&&(h.role==='user'||h.role==='assistant')&&typeof h.content==='string')msgs.push({role:h.role,content:h.content.slice(0,700)});
+  }
+  const content=[{type:'text',text:question}];
+  if(hasImage)content.push({type:'image_url',image_url:{url:image,detail:mode==='read'?'high':'low'}});
+  msgs.push({role:'user',content});
+  return {messages:msgs,max_tokens:MODES[mode].tokens};
+}
+
 export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store');
   if(req.method!=='POST')return res.status(405).json({error:'Método no permitido'});
   const key=process.env.OPENAI_API_KEY,pin=process.env.LAZARO_ACCESS_PIN;
   if(!key||!pin)return res.status(503).json({error:'El administrador todavía no ha activado el servicio de IA.'});
   if(req.headers['x-lazaro-pin']!==pin)return res.status(401).json({error:'Código de prueba incorrecto.'});
-  let {image,question,mode}=req.body||{};
-  if(typeof image!=='string'||!/^data:image\/(jpeg|png|webp);base64,/.test(image)||image.length>3500000)return res.status(400).json({error:'Imagen inválida o demasiado grande'});
-  if(typeof question!=='string')question='Describe esta imagen';
-  question=question.slice(0,700);
-  const context=mode==='experience'?'Describe con sensibilidad y detalle las características perceptibles de la escena sin inventar elementos.':mode==='read'?'Prioriza texto legible, respetando su orden.':'Describe de forma útil el entorno, objetos, posiciones aproximadas y actividad visible.';
+  const built=buildMessages(req.body);
+  if(built.error)return res.status(400).json({error:built.error});
   try{
     const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),25000);
-    let upstream=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',signal:controller.signal,headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_VISION_MODEL||'gpt-4.1-mini',max_tokens:450,messages:[{role:'system',content:'Eres Lázaro, asistente en español peruano para personas con pérdida total de visión. Responde de manera directa, precisa y empática. '+context+' No inventes colores, identidades, señales ni acciones que no puedas verificar. Nunca indiques que se puede cruzar una calle, que un trayecto está libre de obstáculos o que una situación es segura. Si no sabes, dilo.'},{role:'user',content:[{type:'text',text:question},{type:'image_url',image_url:{url:image,detail:'low'}}]}]})});clearTimeout(timeout);
-    let data=await upstream.json();if(!upstream.ok)return res.status(502).json({error:'El proveedor de IA devolvió un error. Revisa su configuración y saldo.'});
+    const upstream=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',signal:controller.signal,headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.OPENAI_VISION_MODEL||'gpt-4.1-mini',max_tokens:built.max_tokens,messages:built.messages})});
+    clearTimeout(timeout);
+    const data=await upstream.json();
+    if(!upstream.ok)return res.status(502).json({error:'El proveedor de IA devolvió un error. Revisa su configuración y saldo.'});
     return res.status(200).json({answer:data.choices?.[0]?.message?.content||'No pude interpretar la imagen.'});
   }catch(e){return res.status(502).json({error:'No fue posible consultar el servicio de IA.'})}
 }

@@ -1,0 +1,1 @@
+{"version":"0.0.1","configurations":[{"name":"lazaro-dev","runtimeExecutable":"node","runtimeArgs":["tests/dev-server.mjs"],"port":5173}]}
