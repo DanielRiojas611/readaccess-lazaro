@@ -15,6 +15,14 @@ Asistente accesible para personas con pérdida total de visión. Recuperado del 
 | `OPENAI_API_KEY` | Sí, para IA | Visión, escena en vivo, conversación |
 | `LAZARO_ACCESS_PIN` | Sí, para IA | Código que el piloto ingresa en Opciones |
 | `OPENAI_VISION_MODEL` | No | Por defecto `gpt-4.1-mini` |
+| `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | Alternativa | Cualquier API compatible con OpenAI. **Preview actual: Groq gratuito** (`https://api.groq.com/openai/v1`, `qwen/qwen3.8-27b`, modelo abierto) |
+| `AI_TIMEOUT_MS` | No | Por defecto 25000 |
+
+Límite del plan gratuito de Groq: 8.000 tokens de entrada/min (≈3 imágenes/min). La escena en vivo solo consulta cuando la cámara detecta un cambio y deja ≥20 s entre consultas.
+
+**URL de la exposición:** https://lazaro-readaccess-expo.vercel.app (alias de un deployment de Preview; producción no cambia).
+
+**IA local (Ollama):** `npm run expo` usa `expo.env`. Probado en un i5-10210U con 8 GB: >2 min por foto, no apto para demo en vivo.
 
 Sin estas variables la app funciona en modo local (voz, OCR, PDF, GPS, brújula, memoria, personas autorizadas, offline) y la IA responde 503.
 
