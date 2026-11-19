@@ -1,48 +1,66 @@
 # ReadAccess 2.0 — Lázaro
 
-Asistente accesible para personas con pérdida total de visión. Recuperado del deployment de producción
-`dpl_4d7UaGMfxsDX1nAgyRvEvjVxnbHh` (tag `prod-baseline-dpl_4d7UaGMf`, SHA1 verificados).
+Asistente **por voz** para personas con pérdida total de visión. La persona toca cualquier parte de la pantalla, habla, y
+Lázaro describe lo que hay delante, lee textos, indica dónde está y conversa. Es una aplicación web (PWA) que funciona en
+el navegador del celular, sin instalar nada.
+
+## Funcionalidades
+| Función | Cómo se pide | Dónde se procesa |
+|---|---|---|
+| Describir lo que hay delante | «¿Qué hay delante?» (abre la cámara, toma la foto sola y describe) | IA en la nube |
+| Preguntas sobre la última foto | «¿De qué color es…?» | IA en la nube |
+| Leer textos y carteles | «Lee esto» (IA; sin internet usa OCR en el teléfono) | IA / Tesseract.js local |
+| Leer documentos PDF o texto | Opciones del acompañante → Documentos | pdf.js local |
+| Escena en vivo | «Inicia la narración» (solo consulta cuando la cámara detecta un cambio) | IA + detección local |
+| ¿Dónde estoy? / ¿Hacia dónde miro? | Por voz | GPS + OpenStreetMap / brújula |
+| Conversación con memoria | Preguntas libres; «Recuerda que…» guarda notas | IA + almacenamiento local |
+| Personas autorizadas | Registro con consentimiento; los rostros no salen del teléfono | face-api local |
+| Asistencia humana | «Llama a mi contacto» / enviar ubicación por SMS | Teléfono |
+| Manos libres | Vuelve a escuchar tras cada respuesta; «silencio» para pausar | Web Speech |
+| Modo sin conexión | OCR, PDF, GPS, brújula, memoria y personas funcionan offline | Service worker |
+| TalkBack | Opción para que el lector de pantalla anuncie los mensajes | — |
 
 ## Estructura
-- `index.html` — app completa (HTML/CSS/JS sin build).
-- `api/vision.js` — función Vercel: proxy a OpenAI (la clave nunca llega al navegador). Modos `explore`, `read`, `experience`, `live`, `chat`.
-- `sw.js` — modo offline (app + OCR + PDF + reconocimiento local tras el primer uso).
-- `tests/` — pruebas de la API (`npm test`) y servidor local (`npm run dev`, puerto 5173).
+- `index.html` — aplicación completa (HTML, CSS y JS, sin paso de compilación).
+- `api/vision.js` — función serverless de Vercel: intermediario hacia la IA. **La clave de la IA nunca llega al navegador.**
+- `sw.js` — modo sin conexión.
+- `tests/api.test.mjs` — pruebas de la API · `tests/dev-server.mjs` — servidor local.
 
-## Variables de entorno (Vercel → Settings → Environment Variables)
-| Variable | Requerida | Uso |
-|---|---|---|
-| `OPENAI_API_KEY` | Sí, para IA | Visión, escena en vivo, conversación |
-| `LAZARO_ACCESS_PIN` | Sí, para IA | Código que el piloto ingresa en Opciones |
-| `OPENAI_VISION_MODEL` | No | Por defecto `gpt-4.1-mini` |
-| `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | Alternativa | Cualquier API compatible con OpenAI. **Preview actual: Groq gratuito** (`https://api.groq.com/openai/v1`, `qwen/qwen3.8-27b`, modelo abierto) |
-| `AI_TIMEOUT_MS` | No | Por defecto 25000 |
+## Ejecutar en local
+Requisitos: [Node.js](https://nodejs.org) 22 o superior. No hay dependencias que instalar.
 
-Límite del plan gratuito de Groq: 8.000 tokens de entrada/min (≈3 imágenes/min). La escena en vivo solo consulta cuando la cámara detecta un cambio y deja ≥20 s entre consultas.
+```bash
+git clone https://github.com/DanielRiojas611/readaccess-lazaro.git
+cd readaccess-lazaro
+npm test        # 13 pruebas de la API
+npm run dev     # abre http://localhost:5173
+```
 
-**URL de la exposición:** https://lazaro-readaccess-expo.vercel.app (alias de un deployment de Preview; producción no cambia).
+Sin variables de entorno, la app funciona en modo local (voz, OCR, PDF, GPS, brújula, memoria, offline) y las funciones
+de IA responden «no activada». Para activar la IA, define las variables antes de `npm run dev` o en Vercel:
 
-**IA local (Ollama):** `npm run expo` usa `expo.env`. Probado en un i5-10210U con 8 GB: >2 min por foto, no apto para demo en vivo.
+| Variable | Uso |
+|---|---|
+| `AI_BASE_URL` | API compatible con OpenAI (p. ej. `https://api.groq.com/openai/v1`). Si se omite, usa OpenAI |
+| `AI_API_KEY` | Clave del proveedor (o `OPENAI_API_KEY`) |
+| `AI_MODEL` | Modelo con visión (p. ej. `qwen/qwen3.8-27b` en Groq) |
+| `LAZARO_ACCESS_PIN` | Código numérico que protege la IA; obligatorio si hay clave |
+| `AI_TIMEOUT_MS` | Opcional, por defecto 25000 |
 
-Sin estas variables la app funciona en modo local (voz, OCR, PDF, GPS, brújula, memoria, personas autorizadas, offline) y la IA responde 503.
+Nunca subas claves al repositorio: los archivos `.env*` están excluidos por `.gitignore`.
 
-## Funciones locales (costo cero)
-Voz (Web Speech), OCR (Tesseract.js), PDF (pdf.js), GPS + Nominatim, brújula, reconocimiento facial
-con consentimiento (face-api, solo en el dispositivo), memoria (localStorage), offline (service worker).
+La cámara y el micrófono del celular solo funcionan en HTTPS (o en `localhost`), por eso las pruebas en teléfono se hacen
+sobre el despliegue de Vercel.
 
-## Seguridad
-Ninguna respuesta debe usarse para decidir cruces de calle ni evitar obstáculos. La regla está en el prompt del servidor
-para todos los modos y en la interfaz. Los rostros nunca se envían a la API; el modelo tiene prohibido identificar personas.
+## Seguridad y ética
+- Lázaro **no reemplaza el bastón ni el perro guía**. Ninguna respuesta debe usarse para decidir cruces de calle ni
+  evitar obstáculos; la regla está en el prompt del servidor para todos los modos y en la interfaz.
+- El modelo tiene prohibido identificar personas por su rostro. El reconocimiento de personas autorizadas es local y requiere consentimiento.
 
-## Diseño Universal (7 principios)
-1. Uso equitativo: voz, teclado, táctil y lector de pantalla llegan a todas las funciones.
-2. Flexibilidad: velocidad de voz, voz propia o TalkBack, conversación continua, intervalo de narración.
-3. Simple e intuitivo: botón central de voz + 10 acciones grandes; comandos en lenguaje natural.
-4. Información perceptible: voz, regiones `aria-live`, vibración y texto en alto contraste.
-5. Tolerancia al error: confirmación antes de llamar, consentimiento antes de registrar rostros, avisos de seguridad, mensajes de error en español.
-6. Bajo esfuerzo físico: objetivos ≥ 50 px, sin gestos complejos ni arrastre.
-7. Tamaño y espacio: diseño de una columna desde 375 px, sin desplazamiento horizontal.
+## Diseño Universal y WCAG 2.2 AA
+Interfaz centrada en la voz: un solo control a pantalla completa, avisos sonoros y vibración, regiones `aria-live`,
+alto contraste verificado, objetivos táctiles grandes, una columna desde 375 px y sin gestos complejos.
 
-## Rollback
-Producción no se modifica desde esta rama. Para volver atrás: `vercel rollback` o promover
-`dpl_4d7UaGMfxsDX1nAgyRvEvjVxnbHh` desde el panel de Vercel; el código base está en `main` / tag `prod-baseline-dpl_4d7UaGMf`.
+## Historial
+`main` / tag `prod-baseline-dpl_4d7UaGMf` contienen el código original recuperado de producción;
+`feature/lazaro-full` contiene la versión completa actual.
