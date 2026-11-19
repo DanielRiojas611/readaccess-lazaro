@@ -4,7 +4,7 @@ const MODES={
   explore:{ctx:'Describe de forma útil el entorno, objetos, posiciones aproximadas (reloj o izquierda/derecha) y actividad visible.',tokens:450},
   read:{ctx:'Prioriza texto legible, respetando su orden.',tokens:700},
   experience:{ctx:'Describe con sensibilidad y detalle las características perceptibles de la escena sin inventar elementos.',tokens:550},
-  live:{ctx:'Estás narrando en vivo. Responde en una o dos frases cortas. Menciona solo lo nuevo o cambiado respecto a la descripción anterior; si nada relevante cambió responde exactamente "Sin cambios".',tokens:90},
+  live:{ctx:'Estás narrando en vivo. Responde en una o dos frases cortas. Menciona solo lo nuevo o cambiado respecto a la descripción anterior. No inventes movimientos ni cambios: si la escena es esencialmente la misma responde exactamente "Sin cambios".',tokens:90},
   chat:{ctx:'Conversa de manera natural y breve. Usa el historial y las notas del usuario como contexto.',tokens:400}
 };
 const SAFETY='Eres Lázaro, asistente en español peruano para personas con pérdida total de visión. Responde de manera directa, precisa y empática. No inventes colores, identidades, señales ni acciones que no puedas verificar. Nunca identifiques a personas por su rostro. Nunca indiques que se puede cruzar una calle, que un trayecto está libre de obstáculos o que una situación es segura. Si no sabes, dilo.';
@@ -49,8 +49,14 @@ export default async function handler(req,res){
     const headers={'Content-Type':'application/json'};if(key)headers.Authorization='Bearer '+key;
     const upstream=await fetch(base+'/chat/completions',{method:'POST',signal:controller.signal,headers,body:JSON.stringify({model:env.AI_MODEL||env.OPENAI_VISION_MODEL||'gpt-4.1-mini',max_tokens:built.max_tokens,messages:built.messages})});
     clearTimeout(timeout);
-    const data=await upstream.json();
-    if(!upstream.ok)return res.status(502).json({error:'El proveedor de IA devolvió un error. Revisa su configuración y saldo.'});
+    const data=await upstream.json().catch(()=>({}));
+    if(!upstream.ok){
+      // Registro sin secretos: estado, tipo de error y límites informados por el proveedor.
+      const h=n=>upstream.headers?.get?.(n);
+      console.error('upstream',upstream.status,data?.error?.code||data?.error?.type||'',String(data?.error?.message||'').slice(0,160),'limit-tokens',h('x-ratelimit-limit-tokens'),'limit-req',h('x-ratelimit-limit-requests'));
+      if(upstream.status===429)return res.status(429).json({error:'Se alcanzó el límite gratuito por minuto. Espera unos segundos.'});
+      return res.status(502).json({error:'El proveedor de IA devolvió un error. Revisa su configuración y saldo.'});
+    }
     // Algunos modelos abiertos devuelven su razonamiento entre <think>…</think>: nunca se lee en voz alta.
     const answer=String(data.choices?.[0]?.message?.content||'').replace(/<think>[\s\S]*?(<\/think>|$)/gi,'').trim();
     return res.status(200).json({answer:answer||'No pude interpretar la imagen.'});
