@@ -66,7 +66,7 @@ html[data-theme=crema] :focus-visible{outline-color:#9c2a00!important}
 </style></head>
 <body><a href="#main" class="skip">Saltar al contenido</a><div class="shell">
 <header><h1>Lázaro <span class="tiny muted">ReadAccess 2.0</span></h1><span id="netBadge" class="net tiny hide">Sin conexión</span></header>
-<div id="status" role="status" aria-live="polite" class="status">Lázaro listo. Toca cualquier parte de la pantalla y habla.</div>
+<div id="status" role="status" aria-live="polite" class="status">Lázaro, asistente por voz para personas ciegas: describe lo que hay delante, lee textos y te dice dónde estás. Toca cualquier parte de la pantalla para empezar.</div>
 <main id="main">
 <!-- ===== Pantalla principal: pocas acciones, grandes, en una columna ===== -->
 <div id="home">
@@ -103,12 +103,16 @@ const say=(text,onDone,force=false,base=-1)=>{if(!speech||(!force&&(!$('autoSpea
 const splitParts=t=>String(t).match(/[^.!?\n]{1,220}[.!?\n]*|.{1,220}/g)||[''];
 let saying={parts:[],idx:0,base:-1,words:new Set(),t0:0,len:0};
 // Voz en español instalada en el teléfono (es-PE > es-US/419 > es-ES > cualquier es-*). Si no hay, la del sistema.
-let voiceCache=null;const pickVoice=()=>{if(voiceCache)return voiceCache;const vs=(speech&&speech.getVoices&&speech.getVoices())||[];const es=vs.filter(v=>/^es[-_]/i.test(v.lang)||/^es$/i.test(v.lang));const pref=['es-PE','es-US','es-419','es-MX','es-ES'];voiceCache=pref.map(p=>es.find(v=>v.lang.replace('_','-').toLowerCase()===p.toLowerCase()&&v.localService)||es.find(v=>v.lang.replace('_','-').toLowerCase()===p.toLowerCase())).find(Boolean)||es[0]||null;return voiceCache};
+// Solo voces INSTALADAS (localService): una voz de red puede quedar muda. Si una voz no arranca, voiceOff=true y se usa la del sistema.
+let voiceCache=null,voiceOff=false;const pickVoice=()=>{if(voiceOff)return null;if(voiceCache)return voiceCache;const vs=(speech&&speech.getVoices&&speech.getVoices())||[];const es=vs.filter(v=>v.localService&&(/^es[-_]/i.test(v.lang)||/^es$/i.test(v.lang)));const pref=['es-PE','es-US','es-419','es-MX','es-ES'];voiceCache=pref.map(p=>es.find(v=>v.lang.replace('_','-').toLowerCase()===p.toLowerCase())).find(Boolean)||es[0]||null;return voiceCache};
 if(speech&&'onvoiceschanged' in speech)speech.addEventListener('voiceschanged',()=>{voiceCache=null});
 // Vigilante: si la voz queda "hablando" mucho más de lo esperado (fallo conocido de Chrome Android), se destraba.
 setInterval(()=>{if(speech&&(speech.speaking||speech.pending)&&saying.t0&&Date.now()-saying.t0>4000+saying.len*110/Number($('voiceRate').value||1)){speech.cancel();saying.t0=0}},2000);
 const normW=t=>String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zñ0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>1);
-const sayNow=(text,onDone,base=-1)=>{const parts=splitParts(text);saying={parts,idx:0,base,words:new Set(normW(text)),t0:Date.now(),len:String(text).length};if(String(text).length>40)setTimeout(startBarge,350);parts.forEach((p,i)=>{let u=new SpeechSynthesisUtterance(p);u.addEventListener('start',()=>{saying.idx=i;saying.t0=Date.now();saying.len=p.length});if(base>=0){u.onstart=()=>markPart(base+i);u.onboundary=e=>{if(e.name==='word')markWord(base+i,e.charIndex,e.charLength)};if(i===parts.length-1)u.addEventListener('end',()=>markPart(-1))}u.lang='es-PE';try{const vz=pickVoice();if(vz)u.voice=vz}catch{}u.rate=Number($('voiceRate').value);if(i===parts.length-1&&onDone){let fired=false;const fin=()=>{if(!fired){fired=true;onDone()}};u.onend=fin;u.onerror=fin;setTimeout(fin,Math.min(30000,1500+String(text).length*95/Number($('voiceRate').value)))}speech.speak(u)})};
+const sayNow=(text,onDone,base=-1)=>{const parts=splitParts(text);const me={parts,idx:0,base,words:new Set(normW(text)),t0:Date.now(),len:String(text).length,started:false,voiced:!!pickVoice()};saying=me;if(String(text).length>40)setTimeout(startBarge,350);
+// Autocuración: si con la voz elegida no empieza a hablar en 2,5 s, se descarta esa voz y se repite con la del sistema.
+setTimeout(()=>{const act=navigator.userActivation?navigator.userActivation.hasBeenActive:true;if(act&&saying===me&&!me.started&&me.voiced&&!voiceOff){voiceOff=true;speech.cancel();setTimeout(()=>sayNow(text,onDone,base),150)}},2500);
+parts.forEach((p,i)=>{let u=new SpeechSynthesisUtterance(p);u.addEventListener('start',()=>{me.started=true;saying.idx=i;saying.t0=Date.now();saying.len=p.length});if(base>=0){u.onstart=()=>markPart(base+i);u.onboundary=e=>{if(e.name==='word')markWord(base+i,e.charIndex,e.charLength)};if(i===parts.length-1)u.addEventListener('end',()=>markPart(-1))}u.lang='es-PE';try{const vz=pickVoice();if(vz)u.voice=vz}catch{}u.rate=Number($('voiceRate').value);if(i===parts.length-1&&onDone){let fired=false;const fin=()=>{if(!fired){fired=true;onDone()}};u.onend=fin;u.onerror=fin;setTimeout(fin,Math.min(30000,1500+String(text).length*95/Number($('voiceRate').value)))}speech.speak(u)})};
 const sayAsync=t=>new Promise(r=>say(t,r));
 let pending=0;const idle=async(max=45000)=>{const t=Date.now();await wait(150);while(Date.now()-t<max&&(busy||pending>0||(speech&&(speech.speaking||speech.pending))))await wait(200)};
 const note=(s,voice=false)=>{status.textContent=s;if(voice)say(s)};
@@ -180,7 +184,7 @@ $('pin').value=getPin();$('pin').addEventListener('change',()=>{setPin($('pin').
 async function callAI(payload){let r;try{r=await fetch('/api/vision',{method:'POST',headers:{'content-type':'application/json','x-lazaro-pin':getPin()},body:JSON.stringify(payload)})}catch{throw Error('sin conexión con el servidor')}let j={};try{j=await r.json()}catch{}if(!r.ok){const e=Error(j.error||'Servicio no disponible');e.status=r.status;throw e}return j.answer}
 const aiErr=e=>e.status===401?(getPin()?'El código de acceso guardado no es válido. Revísalo en Ajustes.':'Falta activar Lázaro en este teléfono. Abre el enlace de activación o escribe el código en Ajustes.'):e.status===429?'Llegamos al límite gratuito por minuto. Espera unos segundos y vuelve a intentarlo.':e.status===503?'La inteligencia artificial no está activada en este servidor.':'No pude consultar la inteligencia artificial: '+e.message;
 // Devuelve true si respondió. opts.image fuerza usar la foto recién tomada; silentFail no anuncia el error (para usar plan B).
-async function askAI(q,opts={}){if(busy)return note('Espera un momento, estoy terminando.',true),false;if(!navigator.onLine){if(!opts.silentFail)note('Sin internet. Funcionan: leer texto, dónde estoy, orientación y memoria.',true);return false}const fresh=photoData&&(opts.image||opts.usePhoto);if(!fresh&&!q){note('Dime tu pregunta.',true);return false}busy=true;$('ask').disabled=true;cue('work');note(fresh?'Mirando la foto…':'Pensando…');try{const question=q||'Describe lo que se ve.';const a=await callAI({image:fresh?photoData:undefined,question,mode:opts.mode||(opts.image?mode:'chat'),history:opts.image?[]:history,now:new Date().toLocaleString('es-PE',{dateStyle:'full',timeStyle:'short'}),memory:$('useMemory').checked?getNotes():[]});history.push({role:'user',content:question},{role:'assistant',content:a});saveHistory();cue('done');respond(a);note('Listo.');return true}catch(e){if(!opts.silentFail||e.status===429){cue('error');note(aiErr(e),true)}return false}finally{busy=false;$('ask').disabled=false}}
+async function askAI(q,opts={}){if(busy)return note('Espera un momento, estoy terminando.',true),false;if(!navigator.onLine){if(!opts.silentFail)note('Sin internet. Funcionan: leer texto, dónde estoy, orientación y memoria.',true);return false}const fresh=photoData&&(opts.image||opts.usePhoto);if(!fresh&&!q){note('Dime tu pregunta.',true);return false}busy=true;$('ask').disabled=true;cue('work');note(fresh?'Un momento, estoy analizando la imagen.':'Un momento.',true);try{const question=q||'Describe lo que se ve.';const a=await callAI({image:fresh?photoData:undefined,question,mode:opts.mode||(opts.image?mode:'chat'),history:opts.image?[]:history,now:new Date().toLocaleString('es-PE',{dateStyle:'full',timeStyle:'short'}),memory:$('useMemory').checked?getNotes():[]});history.push({role:'user',content:question},{role:'assistant',content:a});saveHistory();cue('done');respond(a);note('Listo.');return true}catch(e){if(!opts.silentFail||e.status===429){cue('error');note(aiErr(e),true)}return false}finally{busy=false;$('ask').disabled=false}}
 
 /* ---------- Escena en vivo ---------- */
 let liveTimer=null,liveUntil=0,livePrev='',liveBusy=false,liveSig=null,liveLast=0,liveCool=0;
@@ -198,7 +202,7 @@ const dirName=h=>DIRS[Math.round(((h%360)+360)%360/45)%8];
 // Ubicación robusta: GPS preciso -> si tarda (interiores) ubicación por wifi/red -> si todo falla, última conocida.
 const getPos=o=>new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,o));
 async function placeName(lat,lon){try{const c=new AbortController(),t=setTimeout(()=>c.abort(),6500);const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat='+lat+'&lon='+lon+'&zoom=18&addressdetails=1',{signal:c.signal,headers:{'Accept-Language':'es'}});clearTimeout(t);if(!r.ok)return '';const a=(await r.json()).address||{};return [a.road||a.pedestrian||a.neighbourhood,a.suburb||a.city_district,a.city||a.town||a.state].filter(Boolean).join(', ')}catch{return ''}}
-async function locate(){if(!navigator.geolocation)return note('Este teléfono no permite usar la ubicación aquí.',true);if(!(await ensurePerm('geolocation')))return;cue('work');note('Buscando tu ubicación.');pending++;
+async function locate(){if(!navigator.geolocation)return note('Este teléfono no permite usar la ubicación aquí.',true);if(!(await ensurePerm('geolocation')))return;cue('work');note('Buscando tu ubicación.',true);pending++;
 try{let p,approx=false;
 try{p=await getPos({enableHighAccuracy:true,timeout:8000,maximumAge:30000})}
 catch(e){if(e.code===1)throw e;note('El GPS tarda dentro de edificios. Uso la ubicación por wifi y red.');approx=true;p=await getPos({enableHighAccuracy:false,timeout:12000,maximumAge:300000})}
@@ -268,6 +272,7 @@ if(/(letra|fuente) (del tel[eé]fono|normal de siempre|original)/.test(lower))re
 if(/(desactiva|quita|apaga|sin) (la )?lectura f[aá]cil/.test(lower))return setEasy(false);
 if(/lectura f[aá]cil/.test(lower))return setEasy(true);
 if(/^(?:l[aá]zaro,?\s*)?(contin[uú]a|sigue)( leyendo| la lectura| el documento)?[.!]?$|d[oó]nde (lo )?(dejaste|dej[eé]|qued[eéó])/.test(lower))return resumeReading();
+if(/prueba (de )?(sonido|audio|voz)|me escuchas|se escucha|no te escucho/.test(lower)){const v=pickVoice();return respond('Prueba de sonido. Si me escuchas bien, todo está listo. Si se oye bajo o por el auricular, sube el volumen multimedia o vuelve a abrir la página. Estoy usando '+(v?'la voz '+v.name:'la voz del sistema')+'.')}
 if(/(revisa|configura|activa|dar|dame|da|pide|pedir) (los |mis )?permisos|permisos/.test(lower))return setupPerms();
 if(/llama|pide ayuda|necesito ayuda|emergencia|auxilio/.test(lower))return $('help').click();
 if((m=lower.match(/^(?:lázaro,?\s*)?recuerda(?: que)?\s+(.+)/i)))return addNote(q.slice(q.length-m[1].length));
@@ -308,7 +313,9 @@ try{rec.start()}catch{recognizer=null;setTalk('idle','Toca la pantalla y habla')
 // --- Permisos guiados por voz. Ninguna web puede concederse permisos sola (el aviso es de Chrome/Android),
 // pero Lázaro avisa ANTES de cada aviso, explica cómo pulsar Permitir con TalkBack y confirma el resultado.
 const PERMS=[
- {k:'microphone',name:'el micrófono',why:'para escucharte',ask:async()=>{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(t=>t.stop())}},
+ // NO usar getUserMedia({audio}) para el micrófono: en Android pone el teléfono en modo llamada y la voz de Lázaro queda muda o va al auricular.
+ // Se pide con el propio reconocimiento de voz, que usa otro canal de audio.
+ {k:'microphone',name:'el micrófono',why:'para escucharte',ask:()=>new Promise((res,rej)=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return rej(Error('sin reconocimiento'));const r=new SR();r.lang='es-PE';let done=false;const end=(ok,e)=>{if(done)return;done=true;try{r.abort()}catch{}ok?res():rej(e||Error('no'))};r.onstart=()=>end(true);r.onaudiostart=()=>end(true);r.onerror=e=>end(e.error!=='not-allowed'&&e.error!=='service-not-allowed',Error(e.error));r.onend=()=>end(false,Error('fin'));setTimeout(()=>end(false,Error('tiempo')),20000);try{r.start()}catch(e){end(false,e)}})},
  {k:'camera',name:'la cámara',why:'para describirte lo que hay delante',ask:async()=>{const s=await navigator.mediaDevices.getUserMedia({video:true});s.getTracks().forEach(t=>t.stop())}},
  {k:'geolocation',name:'la ubicación',why:'para decirte dónde estás',ask:()=>getPos({enableHighAccuracy:false,timeout:20000,maximumAge:600000})}];
 async function permState(k){try{return (await navigator.permissions.query({name:k})).state}catch{return 'prompt'}}
@@ -323,7 +330,7 @@ const sts=await Promise.all(PERMS.map(p=>permState(p.k)));const miss=PERMS.filte
 respond(miss.length?'Configuración terminada. Falta '+miss.join(' y ')+'. Cuando quieras, di: revisa los permisos.':'Todo listo. Ya tengo micrófono, cámara y ubicación.')}
 async function onTalk(){if(recognizer){handsStop=true;recognizer.abort();recognizer=null;setTalk('idle','Toca la pantalla y habla');note('En pausa.');return}if(liveTimer){stopLive();return}if(speech&&(speech.speaking||speech.pending))speech.cancel();if(!store.get('lazaro-welcomed',false)){store.set('lazaro-welcomed',true);setTalk('working','Hola…');await sayAsync('Hola, soy Lázaro. Si quieres interrumpirme, toca la pantalla.')}
 if(!store.get('lazaro-perms-done',false)){setTalk('working','Configurando…');await setupPerms();await idle();await sayAsync('Dime qué necesitas, por ejemplo: qué hay delante.')}
-else if(!(await ensurePerm('microphone'))){setTalk('idle','Toca la pantalla y habla');return}
+else{if(!(await ensurePerm('microphone'))){setTalk('idle','Toca la pantalla y habla');return}await sayAsync('Te escucho.')}
 misses=0;listen()}
 function newChat(){history=[];saveHistory();note('Nueva conversación. Conservo tus notas.',true)}
 
@@ -354,6 +361,7 @@ for(const id of ['fontScale','theme','fontFace','easyRead','followRead'])$(id).a
 $('resumeRead').onclick=resumeReading;$('dlText').onclick=downloadText;
 answer.addEventListener('click',e=>{const sp=e.target.closest('[data-i]');if(sp&&!srMode()&&!getSelection().toString())readFrom(Number(sp.dataset.i))});
 renderNotes();renderPeople();netUI();
+setTimeout(()=>{if(speech&&!(speech.speaking||speech.pending))say(store.get('lazaro-welcomed',false)?'Lázaro listo. Toca la pantalla y dime qué necesitas.':'Hola, soy Lázaro, tu asistente por voz. Describo lo que hay delante, leo textos y te digo dónde estás. Toca cualquier parte de la pantalla para empezar.')},800);
 window.__lazaro={route,setupPerms,ensurePerm,locate,spokenMath,askSmart,setHeading:v=>{heading=v},pickVoice,clean,isEcho,startBarge,handleUtterance,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
 })();
 </script></body></html>
