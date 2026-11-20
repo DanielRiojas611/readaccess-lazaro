@@ -195,7 +195,23 @@ function stopLive(silent){if(!liveTimer)return;clearInterval(liveTimer);liveTime
 /* ---------- GPS y orientación ---------- */
 const DIRS=['norte','noreste','este','sureste','sur','suroeste','oeste','noroeste'];
 const dirName=h=>DIRS[Math.round(((h%360)+360)%360/45)%8];
-async function locate(){if(!navigator.geolocation)return note('Este teléfono no permite usar el GPS aquí.',true);cue('work');note('Buscando tu ubicación.');pending++;navigator.geolocation.getCurrentPosition(async p=>{pending--;const {latitude:lat,longitude:lon,accuracy:acc}=p.coords;let msg='Tu ubicación aproximada es latitud '+lat.toFixed(5)+', longitud '+lon.toFixed(5)+', con una precisión de '+Math.round(acc)+' metros. ';if(typeof p.coords.heading==='number'&&!isNaN(p.coords.heading)&&p.coords.speed>0.5)msg+='Te desplazas hacia el '+dirName(p.coords.heading)+'. ';try{let c=new AbortController();let t=setTimeout(()=>c.abort(),6500);let r=await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat='+lat+'&lon='+lon+'&zoom=18&addressdetails=1',{signal:c.signal,headers:{'Accept-Language':'es'}});clearTimeout(t);if(r.ok){let d=await r.json();let a=d.address||{};msg='Estás aproximadamente en '+[a.road||a.pedestrian||a.neighbourhood,a.suburb||a.city_district,a.city||a.town||a.state].filter(Boolean).join(', ')+'. Precisión de unos '+Math.round(acc)+' metros.'}}catch{}cue('done');respond(msg)},()=>{pending--;cue('error');note('No pude obtener tu ubicación. Revisa el permiso de ubicación.',true)},{enableHighAccuracy:true,timeout:12000,maximumAge:20000})}
+// Ubicación robusta: GPS preciso -> si tarda (interiores) ubicación por wifi/red -> si todo falla, última conocida.
+const getPos=o=>new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,o));
+async function placeName(lat,lon){try{const c=new AbortController(),t=setTimeout(()=>c.abort(),6500);const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat='+lat+'&lon='+lon+'&zoom=18&addressdetails=1',{signal:c.signal,headers:{'Accept-Language':'es'}});clearTimeout(t);if(!r.ok)return '';const a=(await r.json()).address||{};return [a.road||a.pedestrian||a.neighbourhood,a.suburb||a.city_district,a.city||a.town||a.state].filter(Boolean).join(', ')}catch{return ''}}
+async function locate(){if(!navigator.geolocation)return note('Este teléfono no permite usar la ubicación aquí.',true);cue('work');note('Buscando tu ubicación.');pending++;
+try{let p,approx=false;
+try{p=await getPos({enableHighAccuracy:true,timeout:8000,maximumAge:30000})}
+catch(e){if(e.code===1)throw e;note('El GPS tarda dentro de edificios. Uso la ubicación por wifi y red.');approx=true;p=await getPos({enableHighAccuracy:false,timeout:12000,maximumAge:300000})}
+const {latitude:lat,longitude:lon,accuracy:acc}=p.coords;const name=await placeName(lat,lon);
+let msg=name?'Estás aproximadamente en '+name+'.':'Tu ubicación aproximada es latitud '+lat.toFixed(5)+', longitud '+lon.toFixed(5)+'.';
+msg+=' Precisión de unos '+Math.round(acc)+' metros.';if(approx||acc>150)msg+=' Es una ubicación aproximada por red.';
+if(typeof p.coords.heading==='number'&&!isNaN(p.coords.heading)&&p.coords.speed>0.5)msg+=' Te desplazas hacia el '+dirName(p.coords.heading)+'.';
+store.set('lazaro-lastplace',{msg,t:Date.now()});cue('done');respond(msg)}
+catch(e){cue('error');const last=store.get('lazaro-lastplace',null);
+if(e&&e.code===1)note('No tengo permiso para usar tu ubicación. Pide a tu acompañante que lo active: en Chrome, toca el candado junto a la dirección, luego Permisos, Ubicación, Permitir. Revisa también que la ubicación del teléfono esté encendida.',true);
+else if(last&&Date.now()-last.t<1800000){const mins=Math.max(1,Math.round((Date.now()-last.t)/60000));respond('Ahora no consigo señal de ubicación. Hace '+mins+(mins===1?' minuto ':' minutos ')+last.msg.replace(/^Estás/,'estabas').replace(/^Tu ubicación aproximada es/,'tu ubicación aproximada era').replace(/ Es una ubicación/,' Era una ubicación'))}
+else note('No consigo tu ubicación. Revisa que la ubicación del teléfono esté encendida, o acércate a una ventana e inténtalo otra vez.',true)}
+finally{pending--}}
 async function orient(){const DOE=window.DeviceOrientationEvent;if(!DOE)return note('Este teléfono no tiene brújula disponible.',true);try{if(typeof DOE.requestPermission==='function'&&(await DOE.requestPermission())!=='granted')return note('Permiso de orientación denegado.',true)}catch{return note('No pude pedir el permiso de orientación.',true)}note('Sostén el teléfono plano frente a ti.');const ev='ondeviceorientationabsolute' in window?'deviceorientationabsolute':'deviceorientation';let done=false;const h=e=>{let hd=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:(e.absolute||ev==='deviceorientationabsolute')&&e.alpha!=null?(360-e.alpha)%360:null;if(hd==null||done)return;done=true;window.removeEventListener(ev,h);cue('done');respond('Estás mirando hacia el '+dirName(hd)+'. La brújula puede desviarse cerca de metales.')};window.addEventListener(ev,h);setTimeout(()=>{if(!done){window.removeEventListener(ev,h);note('No recibí datos de la brújula. Puede que este teléfono no tenga.',true)}},4000)}
 
 /* ---------- Personas autorizadas (local, con consentimiento) ---------- */
@@ -256,7 +272,7 @@ if(/llama|pide ayuda|necesito ayuda|emergencia|auxilio/.test(lower))return $('he
 if((m=lower.match(/^(?:lázaro,?\s*)?recuerda(?: que)?\s+(.+)/i)))return addNote(q.slice(q.length-m[1].length));
 if(/qu[eé] (recuerdas|notas)|mis notas/.test(lower))return readNotes();
 if(/nueva conversaci[oó]n|olvida (la|esta) conversaci[oó]n/.test(lower))return newChat();
-if(/d[oó]nde estoy|ubicaci[oó]n|qu[eé] calle/.test(lower))return locate();
+if(/d[oó]nde (?:estoy|me encuentro|estamos|nos encontramos|queda esto)|en qu[eé] (?:lugar|sitio|parte|calle|avenida|distrito|zona|barrio) (?:estoy|me encuentro|estamos)|ubicaci[oó]n|qu[eé] calle|mi posici[oó]n|por d[oó]nde (?:voy|ando|estoy)/.test(lower))return locate();
 if(/hacia d[oó]nde (miro|estoy mirando)|br[uú]jula|orientaci[oó]n/.test(lower))return orient();
 if(/qui[eé]n (est[aá]|es)/.test(lower))return identify();
 if(/(inicia|empieza|activa).*(en vivo|narraci[oó]n)/.test(lower))return startLive();
@@ -318,6 +334,6 @@ for(const id of ['fontScale','theme','fontFace','easyRead','followRead'])$(id).a
 $('resumeRead').onclick=resumeReading;$('dlText').onclick=downloadText;
 answer.addEventListener('click',e=>{const sp=e.target.closest('[data-i]');if(sp&&!srMode()&&!getSelection().toString())readFrom(Number(sp.dataset.i))});
 renderNotes();renderPeople();netUI();
-window.__lazaro={route,spokenMath,askSmart,setHeading:v=>{heading=v},pickVoice,clean,isEcho,startBarge,handleUtterance,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
+window.__lazaro={route,locate,spokenMath,askSmart,setHeading:v=>{heading=v},pickVoice,clean,isEcho,startBarge,handleUtterance,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
 })();
 </script></body></html>

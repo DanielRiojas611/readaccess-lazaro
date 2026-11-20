@@ -1,5 +1,5 @@
 // Lázaro — modo offline. Cachea la app y las bibliotecas locales (OCR, PDF, rostros) tras el primer uso.
-const VERSION='lazaro-v2.9';
+const VERSION='lazaro-v3.0';
 const SHELL=['/','/index.html','/manifest.webmanifest','/icon.svg','/icon-192.png','/icon-512.png'];
 const CDN=['cdn.jsdelivr.net','cdnjs.cloudflare.com','tessdata.projectnaptha.com'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});

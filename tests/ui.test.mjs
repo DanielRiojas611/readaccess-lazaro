@@ -18,3 +18,8 @@ test('cálculo hablado local y exacto',()=>{const a=js.indexOf('function spokenM
   for(const [q,v] of Object.entries(cases))assert.equal(spokenMath(q),v,q)});
 test('la hora no pierde dígitos ni duplica el punto',()=>{const m=js.match(/return respond\(\('Son las '\+new Date\(\)\.toLocaleTimeString\('es-PE',\{hour:'numeric',minute:'2-digit'\}\)\+'\.'\)\.replace\((\/.*?\/),'\.'\)\);/);assert.ok(m,'falta la respuesta de hora');const re=eval(m[1]);
   assert.equal(('Son las 7:43 a. m.'+'.').replace(re,'.'),'Son las 7:43 a. m.');assert.equal(('Son las 19:43'+'.').replace(re,'.'),'Son las 19:43.')});
+test('REGRESIÓN ubicación: GPS con plan B por red y mensajes según la causa',()=>{const fn=js.slice(js.indexOf('async function locate(){'),js.indexOf('async function orient(){'));
+  assert.match(fn,/enableHighAccuracy:true,timeout:8000/);assert.match(fn,/enableHighAccuracy:false/,'debe reintentar con ubicación por red');assert.match(fn,/e\.code===1/,'permiso denegado tiene su mensaje');assert.match(fn,/lazaro-lastplace/,'debe recordar la última ubicación');assert.match(fn,/finally\{pending--\}/,'pending siempre se libera')});
+test('frases de ubicación reconocidas como comando (no van a la IA)',()=>{const m=js.match(/if\((\/d\[oó\]nde \(\?:estoy[^\n]*?\/)\.test\(lower\)\)return locate\(\);/);assert.ok(m,'falta la ruta de ubicación');const re=eval(m[1]);
+  for(const q of ['¿dónde estoy?','dónde me encuentro','dónde estamos','¿en qué calle estoy?','en qué distrito estoy','mi ubicación','por dónde voy'])assert.ok(re.test(q),q);
+  for(const q of ['¿dónde está la puerta?','cuéntame un chiste'])assert.ok(!re.test(q),q)});
