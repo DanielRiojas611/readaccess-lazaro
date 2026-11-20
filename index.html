@@ -26,7 +26,7 @@ input,select{border:1px solid #6b90ac;border-radius:10px;background:#061b2c;colo
 <!-- ===== Pantalla principal: pocas acciones, grandes, en una columna ===== -->
 <div id="home">
 <div id="camBox" class="hide"><video id="video" autoplay playsinline muted aria-hidden="true"></video></div>
-<button id="talk" class="giant" aria-pressed="false" aria-describedby="talkHint"><span class="ico" aria-hidden="true">🎙️</span><span id="talkLabel">Toca la pantalla y habla</span><span id="talkHint" class="hint">Di «¿Qué hay delante?», «Lee esto», «¿Dónde estoy?» o pregunta lo que quieras. Di «¿Qué puedes hacer?» para escuchar todo.</span></button>
+<button id="talk" class="giant" aria-pressed="false" aria-describedby="talkHint"><span class="ico" aria-hidden="true">🎙️</span><span id="talkLabel">Toca la pantalla y habla</span><span id="talkHint" class="hint">Di «¿Qué hay delante?», «Lee esto», «Describe el paisaje», «¿Dónde estoy?» o pregunta lo que quieras. Di «¿Qué puedes hacer?» para escuchar todo.</span></button>
 <section class="answerBox" aria-labelledby="hAns"><h2 id="hAns">Última respuesta</h2><div id="answer" aria-live="polite"></div></section>
 <p class="warning">Lázaro no reemplaza el bastón ni el perro guía. No uses sus respuestas para decidir cuándo cruzar una calle ni para evitar obstáculos. Puede equivocarse.</p>
 <button class="secondary back" id="moreBtn" aria-controls="more" style="width:100%;margin-top:14px">Opciones para el acompañante</button>
@@ -140,7 +140,7 @@ function needContact(){note('Todavía no hay un teléfono de apoyo. Pide a tu ac
 function shareLocation(){const tel=contactTel();if(!tel)return needContact();if(!navigator.geolocation)return note('Este teléfono no permite usar el GPS aquí.',true);note('Obteniendo tu ubicación para enviarla.');navigator.geolocation.getCurrentPosition(p=>{const body='Necesito apoyo. Mi ubicación aproximada: https://maps.google.com/?q='+p.coords.latitude.toFixed(5)+','+p.coords.longitude.toFixed(5);location.href='sms:'+tel.replace(/[^+0-9]/g,'')+'?body='+encodeURIComponent(body)},()=>note('No pude obtener tu ubicación.',true),{enableHighAccuracy:true,timeout:12000})}
 
 /* ---------- Voz: comandos naturales ---------- */
-const HELP='Puedo hacer esto. Di: qué hay delante, y abro la cámara y te describo. Di: lee esto, y leo un texto o cartel. Di: dónde estoy. Di: hacia dónde miro. Di: repite. Di: recuerda que, y guardo una nota. Di: llama a mi contacto. También puedes preguntarme lo que quieras, o preguntar más sobre la última foto. Di: silencio, para que deje de escuchar.';
+const HELP='Puedo hacer esto. Di: qué hay delante, y abro la cámara y te describo. Di: lee esto, y leo un texto o cartel. Di: describe el paisaje, y te cuento con detalle lo que se ve. Di: dónde estoy. Di: hacia dónde miro. Di: repite. Di: recuerda que, y guardo una nota. Di: llama a mi contacto. También puedes preguntarme lo que quieras, o preguntar más sobre la última foto. Di: silencio, para que deje de escuchar.';
 function route(q){const lower=q.toLowerCase().trim();let m;
 if(/qu[eé] puedes hacer|qu[eé] sabes hacer|comandos|c[oó]mo (te uso|funcionas)|^ayuda\.?$|^opciones\.?$/.test(lower))return respond(HELP);
 if(/llama|pide ayuda|necesito ayuda|emergencia|auxilio/.test(lower))return $('help').click();
@@ -153,6 +153,7 @@ if(/qui[eé]n (est[aá]|es)/.test(lower))return identify();
 if(/(inicia|empieza|activa).*(en vivo|narraci[oó]n)/.test(lower))return startLive();
 if(/(det[eé]n|para|apaga).*(en vivo|narraci[oó]n)/.test(lower))return stopLive();
 if(/\b(lee|leer|l[eé]eme|l[eé]elo|l[eé]emelo)\b|qu[eé] dice (el|la|este|esta|ese|esa|aqu[ií])/.test(lower))return quickLook('read');
+if(/paisaje|panor[aá]mica|\bvista\b.*(detalle|completa)|descr[ií]b\S*.*(con|en) detalle/.test(lower))return quickLook('experience');
 if(/qu[eé] (hay|tengo) (delante|enfrente|al frente)|qu[eé] ves|\bdescr[ií]be|\bmira\b|toma.*foto/.test(lower))return quickLook('explore');
 if(/repite|otra vez/.test(lower))return $('repeat').click();
 return askAI(q)}
