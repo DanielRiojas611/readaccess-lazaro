@@ -36,3 +36,10 @@ test('proveedor local sin clave (Ollama): sin PIN, URL y modelo configurables',a
   delete process.env.AI_BASE_URL;delete process.env.AI_MODEL});
 test('clave de pago sin PIN -> 503 (nunca queda abierta)',async()=>{process.env.OPENAI_API_KEY='sk-test';delete process.env.LAZARO_ACCESS_PIN;assert.equal((await call({body:{mode:'chat',question:'hola'}})).code,503);delete process.env.OPENAI_API_KEY});
 test('se elimina el razonamiento <think> de modelos abiertos',async()=>{process.env.OPENAI_API_KEY='sk-test';process.env.LAZARO_ACCESS_PIN='1234';globalThis.fetch=async()=>({ok:true,json:async()=>({choices:[{message:{content:'<think>\nrazonando en inglés\n</think>\n\nHay una mesa.'}}]})});const r=await call({headers:{'x-lazaro-pin':'1234'},body:{mode:'chat',question:'hola'}});assert.equal(r.body.answer,'Hay una mesa.')});
+test('varios códigos de acceso (equipo y clase), cada uno válido por separado',async()=>{
+  process.env.OPENAI_API_KEY='sk-test';process.env.LAZARO_ACCESS_PIN=' 11112222 , 33334444 ';
+  globalThis.fetch=async()=>({ok:true,json:async()=>({choices:[{message:{content:'ok'}}]})});
+  for(const p of ['11112222','33334444'])assert.equal((await call({headers:{'x-lazaro-pin':p},body:{mode:'chat',question:'hola'}})).code,200);
+  for(const p of ['','1111','11112222,33334444','99999999'])assert.equal((await call({headers:{'x-lazaro-pin':p},body:{mode:'chat',question:'hola'}})).code,401);
+  process.env.LAZARO_ACCESS_PIN=' , ';assert.equal((await call({body:{mode:'chat',question:'hola'}})).code,503,'lista vacía = sin PIN = clave nunca abierta');
+  delete process.env.OPENAI_API_KEY;delete process.env.LAZARO_ACCESS_PIN});

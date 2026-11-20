@@ -36,12 +36,14 @@ export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store');
   if(req.method!=='POST')return res.status(405).json({error:'Método no permitido'});
   // Proveedor configurable (cualquier API compatible con OpenAI): OpenAI, Ollama local, OpenRouter, etc.
-  const env=process.env,key=env.AI_API_KEY||env.OPENAI_API_KEY,pin=env.LAZARO_ACCESS_PIN;
+  // LAZARO_ACCESS_PIN admite varios códigos separados por comas (p. ej. uno por grupo), revocables por separado.
+  const env=process.env,key=env.AI_API_KEY||env.OPENAI_API_KEY;
+  const pins=String(env.LAZARO_ACCESS_PIN||'').split(',').map(s=>s.trim()).filter(Boolean),pin=pins.length>0;
   const base=(env.AI_BASE_URL||'https://api.openai.com/v1').replace(/\/+$/,'');
   const keyless=!!env.AI_BASE_URL&&!key; // modelo propio sin clave (p. ej. Ollama en el PC): sin costo
   if(!key&&!keyless)return res.status(503).json({error:'El administrador todavía no ha activado el servicio de IA.'});
   if(key&&!pin)return res.status(503).json({error:'El administrador todavía no ha activado el servicio de IA.'}); // una clave de pago nunca queda abierta
-  if(pin&&req.headers['x-lazaro-pin']!==pin)return res.status(401).json({error:'Código de prueba incorrecto.'});
+  if(pin&&!pins.includes(String(req.headers['x-lazaro-pin']||'').trim()))return res.status(401).json({error:'Código de prueba incorrecto.'});
   const built=buildMessages(req.body);
   if(built.error)return res.status(400).json({error:built.error});
   try{
