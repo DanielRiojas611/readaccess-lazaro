@@ -6,7 +6,7 @@ const MODES={
   read:{ctx:'Lee el texto legible respetando su orden, tal cual, como si lo leyeras en voz alta. Si no hay texto, dilo en una frase.',tokens:700},
   experience:{ctx:'Describe con sensibilidad y detalle las características perceptibles de la escena sin inventar elementos.',tokens:550},
   live:{ctx:'Estás narrando en vivo. Responde en una o dos frases cortas. Menciona solo lo nuevo o cambiado respecto a la descripción anterior. No inventes movimientos ni cambios: si la escena es esencialmente la misma responde exactamente "Sin cambios".',tokens:90},
-  chat:{ctx:'Conversa de manera natural y breve. Usa el historial y las notas del usuario como contexto.',tokens:400}
+  chat:{ctx:'Conversa de manera natural y breve. Usa el historial y las notas del usuario como contexto. Si hay una imagen, responde a la pregunta sobre esa imagen. Puedes hablar de cualquier tema general: cuenta chistes cortos y amables; el horóscopo trátalo como entretenimiento y aclara en una frase que no tiene base científica; en política responde con neutralidad, datos verificables y distintas posturas, sin dar tu opinión ni recomendar por quién votar; en matemáticas calcula con cuidado, verifica el resultado y explica en una frase cómo llegaste a él; en salud, dinero o temas legales da información general y sugiere consultar a un profesional.',tokens:400}
 };
 const SAFETY='Eres Lázaro, asistente en español peruano para personas con pérdida total de visión. Responde de manera directa, precisa y empática. No inventes colores, identidades, señales ni acciones que no puedas verificar. Nunca identifiques a personas por su rostro. Nunca indiques que se puede cruzar una calle, que un trayecto está libre de obstáculos o que una situación es segura. Si no sabes, dilo. Habla como en una conversación: solo texto plano, sin markdown, sin asteriscos, sin almohadillas, sin listas con viñetas ni números, sin títulos y sin emojis; frases cortas y naturales unidas con conectores. La aplicación lee en voz alta todas tus respuestas y la persona te habla por voz: nunca digas que solo respondes por texto ni que no tienes voz.';
 // Texto para ser escuchado: sin marcas de formato (asteriscos, títulos, viñetas, código, enlaces).
@@ -24,7 +24,7 @@ export function plain(t){
 const str=(v,max)=>typeof v==='string'?v.slice(0,max):'';
 
 export function buildMessages(body){
-  let {image,question,mode,history,memory,previous}=body||{};
+  let {image,question,mode,history,memory,previous,now}=body||{};
   if(!MODES[mode])mode='explore';
   const hasImage=typeof image==='string'&&image.length>0;
   if(hasImage&&(!/^data:image\/(jpeg|png|webp);base64,/.test(image)||image.length>3500000))return {error:'Imagen inválida o demasiado grande'};
@@ -35,6 +35,8 @@ export function buildMessages(body){
   const notes=Array.isArray(memory)?memory.filter(n=>typeof n==='string').slice(0,10).map(n=>n.slice(0,200)):[];
   if(notes.length)system+='\nNotas que el usuario pidió recordar (úsalas solo si son pertinentes):\n- '+notes.join('\n- ');
   if(mode==='live'&&str(previous,600))system+='\nDescripción anterior: '+str(previous,600);
+  if(str(now,80))system+='\nFecha y hora local del usuario: '+str(now,80).replace(/[\r\n]/g,' ')+'.';
+  if(hasImage&&mode!=='live')system+='\nLa imagen adjunta es una foto nueva: describe solo lo que se ve en ella, aunque la conversación anterior hable de otra escena.';
   const msgs=[{role:'system',content:system}];
   if(Array.isArray(history))for(const h of history.slice(-8)){
     if(h&&(h.role==='user'||h.role==='assistant')&&typeof h.content==='string')msgs.push({role:h.role,content:h.content.slice(0,700)});

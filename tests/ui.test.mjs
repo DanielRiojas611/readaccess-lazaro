@@ -12,3 +12,7 @@ test('REGRESIÓN audio mudo: startBarge no abre el micrófono sin la opción act
 });
 test('la voz elige un idioma español y tiene vigilante de cuelgue',()=>{assert.match(js,/const pickVoice=/);assert.match(js,/try\{const vz=pickVoice\(\);if\(vz\)u\.voice=vz\}catch\{\}/,'asignar la voz debe estar protegido: si falla, se usa la del sistema');assert.match(js,/setInterval\(\(\)=>\{if\(speech&&\(speech\.speaking/)});
 test('las respuestas se limpian de markdown antes de leerse',()=>{assert.match(js,/const respond=\(s,onDone\)=>\{s=clean\(s\)/)});
+test('REGRESIÓN foto vieja: la foto solo se adjunta si se pide, y una foto nueva va sin historial',()=>{assert.match(js,/const fresh=photoData&&\(opts\.image\|\|opts\.usePhoto\);/);assert.match(js,/history:opts\.image\?\[\]:history/)});
+test('cálculo hablado local y exacto',()=>{const a=js.indexOf('function spokenMath(lower)'),b=js.indexOf('let pendingQ');assert.ok(a>0&&b>a,'falta spokenMath');const spokenMath=new Function(js.slice(a,b)+';return spokenMath')();
+  const cases={'cuánto es 25 por 4':100,'cuánto es 7 más 5 menos 2':10,'calcula 100 entre 8':12.5,'cuánto es la raíz cuadrada de 81':9,'cuánto es raíz cuadrada de 81':9,'cuánto es 15 por ciento de 200':30,'cuánto es 3 al cuadrado':9,'cuánto es 2,5 por 4':10,'cuéntame un chiste':null,'cuánto es alert(1)':null,'cuánto es 1 más':null};
+  for(const [q,v] of Object.entries(cases))assert.equal(spokenMath(q),v,q)});

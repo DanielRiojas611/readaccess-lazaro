@@ -138,15 +138,18 @@ function setCameraButtons(on){$('capture').disabled=!on;$('stopCamera').disabled
 async function openCamera(silent){if(!navigator.mediaDevices?.getUserMedia){note('Tu navegador no permite abrir la cámara.',true);return false}try{if(stream)stopCamera(true);stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280}},audio:false});$('video').srcObject=stream;$('camBox').classList.remove('hide');try{await $('video').play()}catch{}setCameraButtons(true);if(!silent)note('Cámara abierta.',true);return true}catch(e){cue('error');note('No pude abrir la cámara. Revisa el permiso de cámara del navegador.',true);return false}}
 function stopCamera(silent){stopLive(true);stream?.getTracks().forEach(t=>t.stop());stream=null;$('video').srcObject=null;$('camBox').classList.add('hide');setCameraButtons(false);if(silent!==true)note('Cámara cerrada.')}
 function makeImage(source,w,h,max=1200){let canvas=document.createElement('canvas');let scale=Math.min(1,max/Math.max(w,h));canvas.width=Math.max(1,Math.floor(w*scale));canvas.height=Math.max(1,Math.floor(h*scale));canvas.getContext('2d').drawImage(source,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',.8)}
-function setPhoto(d){photoData=d;photoAt=Date.now();$('preview').src=d}
+let heading=null,photoHeading=null;
+(()=>{const ev='ondeviceorientationabsolute' in window?'deviceorientationabsolute':'deviceorientation';try{addEventListener(ev,e=>{const hd=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:(e.absolute||ev==='deviceorientationabsolute')&&e.alpha!=null?(360-e.alpha)%360:null;if(hd!=null)heading=hd},{passive:true})}catch{}})();
+const turned=()=>heading!=null&&photoHeading!=null&&Math.abs(((heading-photoHeading+540)%360)-180)>40;
+function setPhoto(d){photoData=d;photoAt=Date.now();photoHeading=heading;$('preview').src=d}
 async function videoReady(){const v=$('video');for(let i=0;i<40&&!v.videoWidth;i++)await wait(100);return !!v.videoWidth}
 function capture(){if(!stream||!$('video').videoWidth){note('Primero abre la cámara.',true);return false}setPhoto(makeImage($('video'),$('video').videoWidth,$('video').videoHeight));cue('shot');note('Foto tomada.');return true}
 function loadImageFile(f,cb){let im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{setPhoto(makeImage(im,im.width,im.height,1600));URL.revokeObjectURL(u);cb&&cb()};im.onerror=()=>{URL.revokeObjectURL(u);note('No se pudo abrir la imagen.',true)};im.src=u}
 $('photo').addEventListener('change',()=>{let f=$('photo').files?.[0];if(!f)return;if(!f.type.startsWith('image/'))return note('Archivo no compatible.',true);loadImageFile(f,()=>note('Foto cargada. Puedes preguntar sobre ella.',true))});
 
 /* ---------- Un solo toque: ¿Qué hay delante? / Leer texto ---------- */
-async function quickLook(kind){if(busy)return note('Espera un momento, estoy terminando.',true);busy=true;let ok=false;try{mode=kind;cue('start');const opened=stream?true:await openCamera(true);if(!opened)return;await sayAsync(kind==='read'?'Apunta la cámara al texto, a un palmo de distancia. Tomo la foto en un momento.':'Apunta el teléfono hacia delante. Tomo la foto en un momento.');if(!(await videoReady()))return note('La cámara no respondió. Inténtalo otra vez.',true);await wait(600);ok=capture()}finally{if(!liveTimer)stopCamera(true);busy=false}if(!ok)return;
-const q=kind==='read'?'Lee todo el texto visible, en orden. Si no hay texto, dilo.':kind==='experience'?'Describe esta escena de forma evocadora y detallada, distinguiendo lo visible de lo que no puedes comprobar.':'¿Qué hay delante de mí?';const done=await askAI(q,{image:true,silentFail:kind==='read'});if(done&&kind==='explore')offerAt=Date.now();if(!done&&kind==='read'){note('Leyendo sin internet, puede tardar.');await doOCR()}}
+async function quickLook(kind,custom){if(busy)return note('Espera un momento, estoy terminando.',true);busy=true;let ok=false;try{mode=kind==='ask'?'chat':kind;cue('start');const opened=stream?true:await openCamera(true);if(!opened)return;await sayAsync(kind==='read'?'Apunta la cámara al texto, a un palmo de distancia. Tomo la foto en un momento.':'Apunta el teléfono hacia delante. Tomo la foto en un momento.');if(!(await videoReady()))return note('La cámara no respondió. Inténtalo otra vez.',true);await wait(600);ok=capture()}finally{if(!liveTimer)stopCamera(true);busy=false}if(!ok)return;
+const q=kind==='read'?'Lee todo el texto visible, en orden. Si no hay texto, dilo.':kind==='experience'?'Describe esta escena de forma evocadora y detallada, distinguiendo lo visible de lo que no puedes comprobar.':'¿Qué hay delante de mí?';const done=await askAI(custom||q,{image:true,silentFail:kind==='read',mode:kind==='ask'?'chat':undefined});if(done&&kind==='explore')offerAt=Date.now();if(!done&&kind==='read'){note('Leyendo sin internet, puede tardar.');await doOCR()}}
 
 /* ---------- OCR local (Tesseract) ---------- */
 const TESS='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
@@ -177,7 +180,7 @@ $('pin').value=getPin();$('pin').addEventListener('change',()=>{setPin($('pin').
 async function callAI(payload){let r;try{r=await fetch('/api/vision',{method:'POST',headers:{'content-type':'application/json','x-lazaro-pin':getPin()},body:JSON.stringify(payload)})}catch{throw Error('sin conexión con el servidor')}let j={};try{j=await r.json()}catch{}if(!r.ok){const e=Error(j.error||'Servicio no disponible');e.status=r.status;throw e}return j.answer}
 const aiErr=e=>e.status===401?(getPin()?'El código de acceso guardado no es válido. Revísalo en Ajustes.':'Falta activar Lázaro en este teléfono. Abre el enlace de activación o escribe el código en Ajustes.'):e.status===429?'Llegamos al límite gratuito por minuto. Espera unos segundos y vuelve a intentarlo.':e.status===503?'La inteligencia artificial no está activada en este servidor.':'No pude consultar la inteligencia artificial: '+e.message;
 // Devuelve true si respondió. opts.image fuerza usar la foto recién tomada; silentFail no anuncia el error (para usar plan B).
-async function askAI(q,opts={}){if(busy)return note('Espera un momento, estoy terminando.',true),false;if(!navigator.onLine){if(!opts.silentFail)note('Sin internet. Funcionan: leer texto, dónde estoy, orientación y memoria.',true);return false}const fresh=photoData&&(opts.image||(Date.now()-photoAt<120000&&$('useImage').checked));if(!fresh&&!q){note('Dime tu pregunta.',true);return false}busy=true;$('ask').disabled=true;cue('work');note(fresh?'Mirando la foto…':'Pensando…');try{const question=q||'Describe lo que se ve.';const a=await callAI({image:fresh?photoData:undefined,question,mode:opts.mode||(opts.image?mode:'chat'),history,memory:$('useMemory').checked?getNotes():[]});history.push({role:'user',content:question},{role:'assistant',content:a});saveHistory();cue('done');respond(a);note('Listo.');return true}catch(e){if(!opts.silentFail||e.status===429){cue('error');note(aiErr(e),true)}return false}finally{busy=false;$('ask').disabled=false}}
+async function askAI(q,opts={}){if(busy)return note('Espera un momento, estoy terminando.',true),false;if(!navigator.onLine){if(!opts.silentFail)note('Sin internet. Funcionan: leer texto, dónde estoy, orientación y memoria.',true);return false}const fresh=photoData&&(opts.image||opts.usePhoto);if(!fresh&&!q){note('Dime tu pregunta.',true);return false}busy=true;$('ask').disabled=true;cue('work');note(fresh?'Mirando la foto…':'Pensando…');try{const question=q||'Describe lo que se ve.';const a=await callAI({image:fresh?photoData:undefined,question,mode:opts.mode||(opts.image?mode:'chat'),history:opts.image?[]:history,now:new Date().toLocaleString('es-PE',{dateStyle:'full',timeStyle:'short'}),memory:$('useMemory').checked?getNotes():[]});history.push({role:'user',content:question},{role:'assistant',content:a});saveHistory();cue('done');respond(a);note('Listo.');return true}catch(e){if(!opts.silentFail||e.status===429){cue('error');note(aiErr(e),true)}return false}finally{busy=false;$('ask').disabled=false}}
 
 /* ---------- Escena en vivo ---------- */
 let liveTimer=null,liveUntil=0,livePrev='',liveBusy=false,liveSig=null,liveLast=0,liveCool=0;
@@ -213,9 +216,26 @@ function shareLocation(){const tel=contactTel();if(!tel)return needContact();if(
 let offerAt=0;
 const HELP_SHORT='Puedes decirme: qué hay delante, lee esto, o dónde estoy. También puedes preguntarme lo que quieras. Si quieres conocer todo lo que sé hacer, di: más opciones.';
 const HELP='Puedo hacer esto. Di: qué hay delante, y abro la cámara y te describo. Di: lee esto, y leo un texto o cartel. Di: describe el paisaje, y te cuento con detalle lo que se ve. Di: dónde estoy. Di: hacia dónde miro. Di: repite. Di: recuerda que, y guardo una nota. Di: llama a mi contacto. También puedes preguntarme lo que quieras, o preguntar más sobre la última foto. Di: silencio, para que deje de escuchar. Para la pantalla, di: letra más grande, alto contraste, lectura fácil o letra para dislexia. Di: continúa leyendo, para seguir un documento donde lo dejaste.';
+// Cálculo hablado, exacto y sin internet: «cuánto es 25 por 4», «raíz cuadrada de 81», «15 por ciento de 200».
+function spokenMath(lower){let s=lower.replace(/[¿?¡!]/g,'').trim();const intent=/^(?:l[aá]zaro,?\s*)?(?:cu[aá]nto (?:es|son|da|ser[ií]a)|calcula|resuelve|dime cu[aá]nto es)\s+/;if(!intent.test(s))return null;s=s.replace(intent,'').replace(/^(?:la|el)\s+/,'');
+s=s.replace(/(\d)\.(\d{3})(?!\d)/g,'$1$2').replace(/(\d),(\d)/g,'$1.$2').replace(/ra[ií]z cuadrada de\s*/g,'S(').replace(/S\(([\d.]+)/g,'S($1)').replace(/([\d.]+)\s*(?:%|por ciento) de\s*([\d.]+)/g,'($1/100*$2)').replace(/al cuadrado/g,'**2').replace(/al cubo/g,'**3').replace(/elevado a(?: la)?/g,'**').replace(/multiplicado por|por|×|\bx\b/g,'*').replace(/dividido (?:entre|por)|entre|÷/g,'/').replace(/m[aá]s/g,'+').replace(/menos/g,'-').replace(/\s+/g,'');
+if(!/^[\d.+\-*/()S]+$/.test(s)||!/\d/.test(s))return null;try{const v=Function('S','return ('+s+')')(Math.sqrt);if(typeof v!=='number'||!isFinite(v))return null;return Math.round(v*1e6)/1e6}catch{return null}}
+let pendingQ=null,pendingAt=0;
+const WB=s=>new RegExp('(?:^|[^a-záéíóúüñ])(?:'+s+')(?=[^a-záéíóúüñ]|$)');
+const VISUAL=WB('ves|veo|hay|color(?:es)?|qu[eé] es (?:eso|esto|aquello)|d[oó]nde est[aá]|izquierda|derecha|frente|delante|adelante|detr[aá]s|al lado|cerca|lejos|cu[aá]nt[oa]s|forma|tama[nñ]o|escrito|dice|letrero|cartel|persona|personas|gente|objeto|imagen|foto|mesa|puerta|ventana|calle|pared|suelo|piso|techo');
+const NOWWORD=WB('ahora|aqu[ií]|ac[aá]|nueva|otra foto|otro lado|hacia el (?:norte|sur|este|oeste)|me gir[eé]|gir[eé]|vuelve a mirar|mira otra vez');
+// Pregunta libre: decide si es sobre la foto anterior, una foto nueva o una conversación sin foto.
+function askSmart(q){const lower=q.toLowerCase();if(!VISUAL.test(lower))return askAI(q);const age=photoData?Date.now()-photoAt:Infinity;
+if(age>300000||NOWWORD.test(lower)||turned()){if(turned())note('Has girado. Tomo una foto nueva.');return quickLook('ask',q)}
+if(age<45000)return askAI(q,{usePhoto:true});
+pendingQ=q;pendingAt=Date.now();return respond('¿Te respondo sobre la foto anterior, o tomo una foto nueva?')}
 function route(q){const lower=q.toLowerCase().trim();let m;
+if(pendingQ&&Date.now()-pendingAt<60000){const pq=pendingQ;pendingQ=null;if(WB('nueva|otra|toma(?:la)?|ahora|s[ií],? nueva').test(lower))return quickLook('ask',pq);if(WB('anterior|misma|esa|de antes|la primera|la vieja|la otra no').test(lower))return askAI(pq,{usePhoto:true})}
+if(/qu[eé] hora es|me dices la hora|dime la hora/.test(lower))return respond(('Son las '+new Date().toLocaleTimeString('es-PE',{hour:'numeric',minute:'2-digit'})+'.').replace(/..$/,'.'));
+if(/qu[eé] (d[ií]a|fecha) es( hoy)?|a qu[eé] (d[ií]a|fecha) estamos|qu[eé] d[ií]a (es )?hoy/.test(lower))return respond('Hoy es '+new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.');
+{const r=spokenMath(lower);if(r!==null)return respond('El resultado es '+r.toLocaleString('es-PE',{maximumFractionDigits:6})+'.')}
 const recent=photoData&&Date.now()-photoAt<180000;
-if(recent&&(/m[aá]s detalles?|cu[eé]ntame m[aá]s|detall(a|es)|descr[ií]bel[ao] (mejor|m[aá]s)|con m[aá]s detalle/.test(lower)||(Date.now()-offerAt<90000&&/^(s[ií]|claro|dale|ok(ay)?|bueno|por favor|ya|de acuerdo)(?=[\s,.!?]|$)/.test(lower)))){offerAt=0;return askAI('Describe la imagen con más detalle.',{image:true,mode:'detail'})}
+if(recent&&(/m[aá]s detalles?|cu[eé]ntame m[aá]s|detall(a|es)|descr[ií]bel[ao] (mejor|m[aá]s)|con m[aá]s detalle/.test(lower)||(Date.now()-offerAt<90000&&/^(s[ií]|claro|dale|ok(ay)?|bueno|por favor|ya|de acuerdo)(?=[\s,.!?]|$)/.test(lower)))){offerAt=0;return askAI('Describe la imagen con más detalle.',{usePhoto:true,mode:'detail'})}
 if(Date.now()-offerAt<90000&&/^(no|nada|est[aá] bien|as[ií] est[aá] bien)(?=[\s,.!?]|$)/.test(lower)){offerAt=0;return respond('De acuerdo.')}
 if(/m[aá]s opciones|otras opciones|qu[eé] m[aá]s (puedes|sabes)|todos los comandos/.test(lower))return respond(HELP);
 if(/qu[eé] puedes hacer|qu[eé] sabes hacer|comandos|c[oó]mo (te uso|funcionas)|^ayuda\.?$|^opciones\.?$/.test(lower))return respond(HELP_SHORT);
@@ -245,7 +265,7 @@ if(/\b(lee|leer|l[eé]eme|l[eé]elo|l[eé]emelo)\b|qu[eé] dice (el|la|este|esta
 if(/paisaje|panor[aá]mica|\bvista\b.*(detalle|completa)|descr[ií]b\S*.*(con|en) detalle/.test(lower))return quickLook('experience');
 if(/qu[eé] (hay|tengo) (delante|enfrente|al frente)|qu[eé] ves|\bdescr[ií]be|\bmira\b|toma.*foto/.test(lower))return quickLook('explore');
 if(/repite|otra vez/.test(lower))return $('repeat').click();
-return askAI(q)}
+return askSmart(q)}
 // --- Interrupción por voz: escucha mientras Lázaro habla; ignora su propio eco; si alguien habla, se calla y atiende.
 let barge=null,bargeBroken=false;
 const isEcho=t=>{const w=normW(t);if(!w.length)return true;const hit=w.filter(x=>saying.words.has(x)).length;return hit/w.length>=0.6};
@@ -298,6 +318,6 @@ for(const id of ['fontScale','theme','fontFace','easyRead','followRead'])$(id).a
 $('resumeRead').onclick=resumeReading;$('dlText').onclick=downloadText;
 answer.addEventListener('click',e=>{const sp=e.target.closest('[data-i]');if(sp&&!srMode()&&!getSelection().toString())readFrom(Number(sp.dataset.i))});
 renderNotes();renderPeople();netUI();
-window.__lazaro={route,pickVoice,clean,isEcho,startBarge,handleUtterance,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
+window.__lazaro={route,spokenMath,askSmart,setHeading:v=>{heading=v},pickVoice,clean,isEcho,startBarge,handleUtterance,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
 })();
 </script></body></html>
