@@ -43,3 +43,10 @@ test('varios códigos de acceso (equipo y clase), cada uno válido por separado'
   for(const p of ['','1111','11112222,33334444','99999999'])assert.equal((await call({headers:{'x-lazaro-pin':p},body:{mode:'chat',question:'hola'}})).code,401);
   process.env.LAZARO_ACCESS_PIN=' , ';assert.equal((await call({body:{mode:'chat',question:'hola'}})).code,503,'lista vacía = sin PIN = clave nunca abierta');
   delete process.env.OPENAI_API_KEY;delete process.env.LAZARO_ACCESS_PIN});
+test('las respuestas llegan sin formato markdown (para ser escuchadas)',async()=>{
+  const {plain}=await import('../api/vision.js');
+  const md='## Escena\n\n**Delante** hay una *mesa* de madera.\n- Una taza **roja** a la izquierda.\n1. Un libro\n`código` y [enlace](http://x)';
+  const out=plain(md);assert.ok(!/[*#`]/.test(out),out);assert.match(out,/Delante hay una mesa de madera\./);assert.match(out,/^Una taza roja a la izquierda\./m);assert.match(out,/^Un libro$/m);assert.match(out,/enlace/);
+  assert.equal(plain('Precio 3*4 = 12'),'Precio 34 = 12'.replace('34','34')); // los asteriscos sueltos desaparecen
+});
+test('modo detalle y resumen con oferta de más detalle',()=>{const IMG='data:image/jpeg;base64,AAAA';const e=buildMessages({mode:'explore',image:IMG});assert.match(e.messages[0].content,/más detalles/);assert.match(e.messages[0].content,/sin asteriscos/);const d=buildMessages({mode:'detail',image:IMG});assert.equal(d.max_tokens,650)});

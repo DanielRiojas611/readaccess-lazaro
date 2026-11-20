@@ -101,11 +101,15 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 // En Chrome Android, cancel() seguido de speak() puede descartar la frase y no avisar nunca del final: se espera un instante.
 const say=(text,onDone,force=false,base=-1)=>{if(!speech||(!force&&(!$('autoSpeak').checked||srMode()))){onDone&&setTimeout(onDone,0);return}if(speech.speaking||speech.pending){speech.cancel();setTimeout(()=>sayNow(text,onDone,base),120)}else sayNow(text,onDone,base)};
 const splitParts=t=>String(t).match(/[^.!?\n]{1,220}[.!?\n]*|.{1,220}/g)||[''];
-const sayNow=(text,onDone,base=-1)=>{const parts=splitParts(text);parts.forEach((p,i)=>{let u=new SpeechSynthesisUtterance(p);if(base>=0){u.onstart=()=>markPart(base+i);u.onboundary=e=>{if(e.name==='word')markWord(base+i,e.charIndex,e.charLength)};if(i===parts.length-1)u.addEventListener('end',()=>markPart(-1))}u.lang='es-PE';u.rate=Number($('voiceRate').value);if(i===parts.length-1&&onDone){let fired=false;const fin=()=>{if(!fired){fired=true;onDone()}};u.onend=fin;u.onerror=fin;setTimeout(fin,Math.min(30000,1500+String(text).length*95/Number($('voiceRate').value)))}speech.speak(u)})};
+let saying={parts:[],idx:0,base:-1,words:new Set()};
+const normW=t=>String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zñ0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>1);
+const sayNow=(text,onDone,base=-1)=>{const parts=splitParts(text);saying={parts,idx:0,base,words:new Set(normW(text))};if(String(text).length>40)setTimeout(startBarge,350);parts.forEach((p,i)=>{let u=new SpeechSynthesisUtterance(p);u.addEventListener('start',()=>{saying.idx=i});if(base>=0){u.onstart=()=>markPart(base+i);u.onboundary=e=>{if(e.name==='word')markWord(base+i,e.charIndex,e.charLength)};if(i===parts.length-1)u.addEventListener('end',()=>markPart(-1))}u.lang='es-PE';u.rate=Number($('voiceRate').value);if(i===parts.length-1&&onDone){let fired=false;const fin=()=>{if(!fired){fired=true;onDone()}};u.onend=fin;u.onerror=fin;setTimeout(fin,Math.min(30000,1500+String(text).length*95/Number($('voiceRate').value)))}speech.speak(u)})};
 const sayAsync=t=>new Promise(r=>say(t,r));
 let pending=0;const idle=async(max=45000)=>{const t=Date.now();await wait(150);while(Date.now()-t<max&&(busy||pending>0||(speech&&(speech.speaking||speech.pending))))await wait(200)};
 const note=(s,voice=false)=>{status.textContent=s;if(voice)say(s)};
-const respond=(s,onDone)=>{lastText=s;renderAnswer(s);if(s.length>1000)store.set('lazaro-doc',{h:hashText(s),t:s.slice(0,20000)});say(s,onDone,false,0)};
+// Texto para ser escuchado: sin asteriscos, títulos, viñetas, código ni enlaces markdown.
+const clean=t=>String(t).replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/\x60{1,3}/g,'').replace(/^\s{0,3}#{1,6}\s*/gm,'').replace(/^\s*(?:[-*+•]|\d+[.)])\s+/gm,'').replace(/(\*\*|__)(.*?)\1/g,'$2').replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=[\s.,;:!?)]|$)/gm,'$1$2').replace(/[*#]+/g,'').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+const respond=(s,onDone)=>{s=clean(s);lastText=s;renderAnswer(s);if(s.length>1000)store.set('lazaro-doc',{h:hashText(s),t:s.slice(0,20000)});say(s,onDone,false,0)};
 /* ---------- Pantalla y lectura: texto resaltado, marcador, tamaño y colores ---------- */
 function hashText(t){let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return String(h)}
 function renderAnswer(s){answer.textContent='';splitParts(s).forEach((p,i)=>{const sp=document.createElement('span');sp.textContent=p;sp.dataset.i=i;answer.append(sp)})}
@@ -137,7 +141,7 @@ $('photo').addEventListener('change',()=>{let f=$('photo').files?.[0];if(!f)retu
 
 /* ---------- Un solo toque: ¿Qué hay delante? / Leer texto ---------- */
 async function quickLook(kind){if(busy)return note('Espera un momento, estoy terminando.',true);busy=true;let ok=false;try{mode=kind;cue('start');const opened=stream?true:await openCamera(true);if(!opened)return;await sayAsync(kind==='read'?'Apunta la cámara al texto, a un palmo de distancia. Tomo la foto en un momento.':'Apunta el teléfono hacia delante. Tomo la foto en un momento.');if(!(await videoReady()))return note('La cámara no respondió. Inténtalo otra vez.',true);await wait(600);ok=capture()}finally{if(!liveTimer)stopCamera(true);busy=false}if(!ok)return;
-const q=kind==='read'?'Lee todo el texto visible, en orden. Si no hay texto, dilo.':kind==='experience'?'Describe esta escena de forma evocadora y detallada, distinguiendo lo visible de lo que no puedes comprobar.':'¿Qué hay delante de mí? Describe lo más importante primero.';const done=await askAI(q,{image:true,silentFail:kind==='read'});if(!done&&kind==='read'){note('Leyendo sin internet, puede tardar.');await doOCR()}}
+const q=kind==='read'?'Lee todo el texto visible, en orden. Si no hay texto, dilo.':kind==='experience'?'Describe esta escena de forma evocadora y detallada, distinguiendo lo visible de lo que no puedes comprobar.':'¿Qué hay delante de mí?';const done=await askAI(q,{image:true,silentFail:kind==='read'});if(done&&kind==='explore')offerAt=Date.now();if(!done&&kind==='read'){note('Leyendo sin internet, puede tardar.');await doOCR()}}
 
 /* ---------- OCR local (Tesseract) ---------- */
 const TESS='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
@@ -168,7 +172,7 @@ $('pin').value=getPin();$('pin').addEventListener('change',()=>{setPin($('pin').
 async function callAI(payload){let r;try{r=await fetch('/api/vision',{method:'POST',headers:{'content-type':'application/json','x-lazaro-pin':getPin()},body:JSON.stringify(payload)})}catch{throw Error('sin conexión con el servidor')}let j={};try{j=await r.json()}catch{}if(!r.ok){const e=Error(j.error||'Servicio no disponible');e.status=r.status;throw e}return j.answer}
 const aiErr=e=>e.status===401?(getPin()?'El código de acceso guardado no es válido. Revísalo en Ajustes.':'Falta activar Lázaro en este teléfono. Abre el enlace de activación o escribe el código en Ajustes.'):e.status===429?'Llegamos al límite gratuito por minuto. Espera unos segundos y vuelve a intentarlo.':e.status===503?'La inteligencia artificial no está activada en este servidor.':'No pude consultar la inteligencia artificial: '+e.message;
 // Devuelve true si respondió. opts.image fuerza usar la foto recién tomada; silentFail no anuncia el error (para usar plan B).
-async function askAI(q,opts={}){if(busy)return note('Espera un momento, estoy terminando.',true),false;if(!navigator.onLine){if(!opts.silentFail)note('Sin internet. Funcionan: leer texto, dónde estoy, orientación y memoria.',true);return false}const fresh=photoData&&(opts.image||(Date.now()-photoAt<120000&&$('useImage').checked));if(!fresh&&!q){note('Dime tu pregunta.',true);return false}busy=true;$('ask').disabled=true;cue('work');note(fresh?'Mirando la foto…':'Pensando…');try{const question=q||'Describe lo que se ve.';const a=await callAI({image:fresh?photoData:undefined,question,mode:fresh?mode:'chat',history,memory:$('useMemory').checked?getNotes():[]});history.push({role:'user',content:question},{role:'assistant',content:a});saveHistory();cue('done');respond(a);note('Listo.');return true}catch(e){if(!opts.silentFail||e.status===429){cue('error');note(aiErr(e),true)}return false}finally{busy=false;$('ask').disabled=false}}
+async function askAI(q,opts={}){if(busy)return note('Espera un momento, estoy terminando.',true),false;if(!navigator.onLine){if(!opts.silentFail)note('Sin internet. Funcionan: leer texto, dónde estoy, orientación y memoria.',true);return false}const fresh=photoData&&(opts.image||(Date.now()-photoAt<120000&&$('useImage').checked));if(!fresh&&!q){note('Dime tu pregunta.',true);return false}busy=true;$('ask').disabled=true;cue('work');note(fresh?'Mirando la foto…':'Pensando…');try{const question=q||'Describe lo que se ve.';const a=await callAI({image:fresh?photoData:undefined,question,mode:opts.mode||(opts.image?mode:'chat'),history,memory:$('useMemory').checked?getNotes():[]});history.push({role:'user',content:question},{role:'assistant',content:a});saveHistory();cue('done');respond(a);note('Listo.');return true}catch(e){if(!opts.silentFail||e.status===429){cue('error');note(aiErr(e),true)}return false}finally{busy=false;$('ask').disabled=false}}
 
 /* ---------- Escena en vivo ---------- */
 let liveTimer=null,liveUntil=0,livePrev='',liveBusy=false,liveSig=null,liveLast=0,liveCool=0;
@@ -201,9 +205,15 @@ function needContact(){note('Todavía no hay un teléfono de apoyo. Pide a tu ac
 function shareLocation(){const tel=contactTel();if(!tel)return needContact();if(!navigator.geolocation)return note('Este teléfono no permite usar el GPS aquí.',true);note('Obteniendo tu ubicación para enviarla.');navigator.geolocation.getCurrentPosition(p=>{const body='Necesito apoyo. Mi ubicación aproximada: https://maps.google.com/?q='+p.coords.latitude.toFixed(5)+','+p.coords.longitude.toFixed(5);location.href='sms:'+tel.replace(/[^+0-9]/g,'')+'?body='+encodeURIComponent(body)},()=>note('No pude obtener tu ubicación.',true),{enableHighAccuracy:true,timeout:12000})}
 
 /* ---------- Voz: comandos naturales ---------- */
+let offerAt=0;
+const HELP_SHORT='Puedes decirme: qué hay delante, lee esto, o dónde estoy. También puedes preguntarme lo que quieras. Si quieres conocer todo lo que sé hacer, di: más opciones.';
 const HELP='Puedo hacer esto. Di: qué hay delante, y abro la cámara y te describo. Di: lee esto, y leo un texto o cartel. Di: describe el paisaje, y te cuento con detalle lo que se ve. Di: dónde estoy. Di: hacia dónde miro. Di: repite. Di: recuerda que, y guardo una nota. Di: llama a mi contacto. También puedes preguntarme lo que quieras, o preguntar más sobre la última foto. Di: silencio, para que deje de escuchar. Para la pantalla, di: letra más grande, alto contraste, lectura fácil o letra para dislexia. Di: continúa leyendo, para seguir un documento donde lo dejaste.';
 function route(q){const lower=q.toLowerCase().trim();let m;
-if(/qu[eé] puedes hacer|qu[eé] sabes hacer|comandos|c[oó]mo (te uso|funcionas)|^ayuda\.?$|^opciones\.?$/.test(lower))return respond(HELP);
+const recent=photoData&&Date.now()-photoAt<180000;
+if(recent&&(/m[aá]s detalles?|cu[eé]ntame m[aá]s|detall(a|es)|descr[ií]bel[ao] (mejor|m[aá]s)|con m[aá]s detalle/.test(lower)||(Date.now()-offerAt<90000&&/^(s[ií]|claro|dale|ok(ay)?|bueno|por favor|ya|de acuerdo)(?=[\s,.!?]|$)/.test(lower)))){offerAt=0;return askAI('Describe la imagen con más detalle.',{image:true,mode:'detail'})}
+if(Date.now()-offerAt<90000&&/^(no|nada|est[aá] bien|as[ií] est[aá] bien)(?=[\s,.!?]|$)/.test(lower)){offerAt=0;return respond('De acuerdo.')}
+if(/m[aá]s opciones|otras opciones|qu[eé] m[aá]s (puedes|sabes)|todos los comandos/.test(lower))return respond(HELP);
+if(/qu[eé] puedes hacer|qu[eé] sabes hacer|comandos|c[oó]mo (te uso|funcionas)|^ayuda\.?$|^opciones\.?$/.test(lower))return respond(HELP_SHORT);
 if(/^(?:l[aá]zaro,?\s*)?(?:(?:pon|ponme|haz|hazme|quiero|necesito)\s+)?(?:la |el |una )?(?:letra|texto|tama[nñ]o(?: de(?: la)? letra)?) (?:m[aá]s )?(?:grande|mayor)[.!]?$|(?:aumenta|agranda|sube|ampl[ií]a)\S* (?:la |el )?(?:letra|texto|tama[nñ]o)/.test(lower))return fontStep(1);
 if(/^(?:l[aá]zaro,?\s*)?(?:(?:pon|ponme|haz|hazme|quiero|necesito)\s+)?(?:la |el |una )?(?:letra|texto|tama[nñ]o(?: de(?: la)? letra)?) (?:m[aá]s )?(?:peque[nñ]a|peque[nñ]o|chica|chico|menor)[.!]?$|(?:reduce|disminuye|achica|baja)\S* (?:la |el )?(?:letra|texto|tama[nñ]o)/.test(lower))return fontStep(-1);
 if(/(letra|texto|tama[nñ]o) normal/.test(lower)){$('fontScale').value='1';applyDisplay();return note('Letra normal.',true)}
@@ -231,16 +241,29 @@ if(/paisaje|panor[aá]mica|\bvista\b.*(detalle|completa)|descr[ií]b\S*.*(con|en
 if(/qu[eé] (hay|tengo) (delante|enfrente|al frente)|qu[eé] ves|\bdescr[ií]be|\bmira\b|toma.*foto/.test(lower))return quickLook('explore');
 if(/repite|otra vez/.test(lower))return $('repeat').click();
 return askAI(q)}
+// --- Interrupción por voz: escucha mientras Lázaro habla; ignora su propio eco; si alguien habla, se calla y atiende.
+let barge=null,bargeBroken=false;
+const isEcho=t=>{const w=normW(t);if(!w.length)return true;const hit=w.filter(x=>saying.words.has(x)).length;return hit/w.length>=0.6};
+function startBarge(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR||barge||recognizer||bargeBroken||srMode()||handsStop||liveTimer||!$('continuous').checked)return;if(!(speech&&(speech.speaking||speech.pending)))return;
+const rec=new SR();barge=rec;let acted=false;rec.lang='es-PE';rec.interimResults=true;rec.continuous=true;rec.maxAlternatives=1;
+rec.onresult=e=>{if(acted)return;let txt='',fin=false;for(let i=e.resultIndex;i<e.results.length;i++){txt+=e.results[i][0].transcript;if(e.results[i].isFinal)fin=true}txt=txt.trim();if(!txt||isEcho(txt))return;
+if(!fin&&normW(txt).length<2)return;if(speech&&(speech.speaking||speech.pending))speech.cancel();if(fin){acted=true;barge=null;try{rec.abort()}catch{}handleUtterance(txt)}};
+rec.onerror=()=>{};rec.onend=()=>{if(barge===rec)barge=null;if(!acted&&speech&&(speech.speaking||speech.pending))setTimeout(startBarge,250)};
+const before=saying;try{rec.start()}catch{barge=null;return}
+// Algunos Android cortan la voz al abrir el micrófono: se detecta, se desactiva la interrupción y se retoma la frase.
+setTimeout(()=>{if(acted||barge!==rec)return;if(!(speech.speaking||speech.pending)&&before===saying&&saying.idx<saying.parts.length-1){bargeBroken=true;try{rec.abort()}catch{}barge=null;const rest=saying.parts.slice(saying.idx).join(' ');say(rest,null,false,saying.base>=0?saying.base+saying.idx:-1)}},800)}
+function stopBarge(){if(barge){const b=barge;barge=null;try{b.abort()}catch{}}}
 let handsStop=false,misses=0;const handsOn=()=>$('continuous').checked&&!srMode()&&!handsStop&&!liveTimer;
-const STOP=/^(silencio|basta|pausa|para|c[aá]llate|adi[oó]s|chau|gracias( l[aá]zaro)?|eso es todo|nada m[aá]s)[.!]?$/;
+const STOP=/^(silencio|basta|pausa|para|c[aá]llate|adi[oó]s|chau|gracias( l[aá]zaro)?|eso es todo|nada m[aá]s|det[eé]nte|espera)[.!]?$/;
+async function handleUtterance(q){q=String(q).trim();misses=0;$('question').value=q;note('Escuché: '+q);if(STOP.test(q.toLowerCase())){handsStop=true;stopBarge();speech?.cancel();setTalk('idle','Toca la pantalla y habla');await sayAsync('De acuerdo. Toca la pantalla cuando me necesites.');return}setTalk('working','Un momento…');try{await route(q)}catch{}await idle();setTalk('idle','Toca la pantalla y habla');if(handsOn())setTimeout(()=>{if(handsOn()&&!recognizer)listen()},400)}
 function setTalk(state,label){const t=$('talk');t.setAttribute('aria-pressed',String(state==='listening'));t.dataset.state=state;$('talkLabel').textContent=label}
-function listen(){let SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){note('Este navegador no reconoce la voz. Abre Lázaro en Chrome.',true);return}if(recognizer)return;handsStop=false;let rec=new SR(),heard=false,noSpeech=false;recognizer=rec;rec.lang='es-PE';rec.interimResults=false;rec.maxAlternatives=1;setTalk('listening','Te escucho…');cue('start');note('Te escucho.');
-rec.onresult=async e=>{heard=true;misses=0;let q=e.results[0][0].transcript.trim();$('question').value=q;note('Escuché: '+q);if(STOP.test(q.toLowerCase())){handsStop=true;setTalk('idle','Toca la pantalla y habla');await sayAsync('De acuerdo. Toca la pantalla cuando me necesites.');return}setTalk('working','Un momento…');try{await route(q)}catch{}await idle();setTalk('idle','Toca la pantalla y habla');if(handsOn())setTimeout(()=>{if(handsOn()&&!recognizer)listen()},400)};
+function listen(){let SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){note('Este navegador no reconoce la voz. Abre Lázaro en Chrome.',true);return}if(recognizer)return;stopBarge();handsStop=false;let rec=new SR(),heard=false,noSpeech=false;recognizer=rec;rec.lang='es-PE';rec.interimResults=false;rec.maxAlternatives=1;setTalk('listening','Te escucho…');cue('start');note('Te escucho.');
+rec.onresult=e=>{heard=true;handleUtterance(e.results[0][0].transcript)};
 rec.onerror=e=>{if(e.error==='no-speech'){noSpeech=true;return}if(e.error!=='aborted'){handsStop=true;cue('error');note(e.error==='not-allowed'?'Necesito permiso para usar el micrófono. Pide a tu acompañante que lo active.':'No te entendí. Toca la pantalla y vuelve a intentarlo.',true)}};
 rec.onend=()=>{recognizer=null;if(heard)return;setTalk('idle','Toca la pantalla y habla');if(noSpeech){misses++;if(misses<2&&handsOn())return setTimeout(()=>{if(!recognizer)listen()},300);misses=0;handsStop=true;note('Me quedo en pausa. Toca la pantalla cuando me necesites.',true)}};
 try{rec.start()}catch{recognizer=null;setTalk('idle','Toca la pantalla y habla');note('El micrófono no está disponible.',true)}}
 // Toque en la pantalla: si hablo, me callo y escucho; si escucho, paro; si es la primera vez, me presento.
-async function onTalk(){if(recognizer){handsStop=true;recognizer.abort();recognizer=null;setTalk('idle','Toca la pantalla y habla');note('En pausa.');return}if(liveTimer){stopLive();return}if(speech&&(speech.speaking||speech.pending))speech.cancel();if(!store.get('lazaro-welcomed',false)){store.set('lazaro-welcomed',true);setTalk('working','Hola…');await sayAsync('Hola, soy Lázaro. Toca la pantalla y habla. Por ejemplo, di: qué hay delante, o: lee esto. Para saber todo lo que puedo hacer, di: qué puedes hacer. Te escucho.')}misses=0;listen()}
+async function onTalk(){if(recognizer){handsStop=true;recognizer.abort();recognizer=null;setTalk('idle','Toca la pantalla y habla');note('En pausa.');return}if(liveTimer){stopLive();return}if(speech&&(speech.speaking||speech.pending))speech.cancel();if(!store.get('lazaro-welcomed',false)){store.set('lazaro-welcomed',true);setTalk('working','Hola…');await sayAsync('Hola, soy Lázaro. Dime qué necesitas, por ejemplo: qué hay delante. Puedes hablarme incluso mientras yo hablo.')}misses=0;listen()}
 function newChat(){history=[];saveHistory();note('Nueva conversación. Conservo tus notas.',true)}
 
 /* ---------- Vistas ---------- */
@@ -270,6 +293,6 @@ for(const id of ['fontScale','theme','fontFace','easyRead','followRead'])$(id).a
 $('resumeRead').onclick=resumeReading;$('dlText').onclick=downloadText;
 answer.addEventListener('click',e=>{const sp=e.target.closest('[data-i]');if(sp&&!srMode()&&!getSelection().toString())readFrom(Number(sp.dataset.i))});
 renderNotes();renderPeople();netUI();
-window.__lazaro={route,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
+window.__lazaro={route,clean,isEcho,startBarge,handleUtterance,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
 })();
 </script></body></html>
