@@ -19,6 +19,8 @@ el navegador del celular, sin instalar nada.
 | Manos libres | Vuelve a escuchar tras cada respuesta; «silencio» para pausar | Web Speech |
 | Modo sin conexión | OCR, PDF, GPS, brújula, memoria y personas funcionan offline | Service worker |
 | TalkBack | Opción para que el lector de pantalla anuncie los mensajes | — |
+| Pantalla y lectura (baja visión, dificultades lectoras) | Opciones del acompañante → Pantalla y lectura, o «letra más grande», «alto contraste», «lectura fácil», «letra para dislexia» (OpenDyslexic, licencia OFL en `fonts/`) | Local |
+| Lectura con resaltado y marcador | La frase y la palabra que se leen se resaltan (palabra según la voz del teléfono); tocar una frase lee desde ahí; «continúa leyendo» retoma donde quedó; descarga del texto | Local |
 
 ## Estructura
 - `index.html` — aplicación completa (HTML, CSS y JS, sin paso de compilación).
