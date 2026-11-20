@@ -16,3 +16,5 @@ test('REGRESIÓN foto vieja: la foto solo se adjunta si se pide, y una foto nuev
 test('cálculo hablado local y exacto',()=>{const a=js.indexOf('function spokenMath(lower)'),b=js.indexOf('let pendingQ');assert.ok(a>0&&b>a,'falta spokenMath');const spokenMath=new Function(js.slice(a,b)+';return spokenMath')();
   const cases={'cuánto es 25 por 4':100,'cuánto es 7 más 5 menos 2':10,'calcula 100 entre 8':12.5,'cuánto es la raíz cuadrada de 81':9,'cuánto es raíz cuadrada de 81':9,'cuánto es 15 por ciento de 200':30,'cuánto es 3 al cuadrado':9,'cuánto es 2,5 por 4':10,'cuéntame un chiste':null,'cuánto es alert(1)':null,'cuánto es 1 más':null};
   for(const [q,v] of Object.entries(cases))assert.equal(spokenMath(q),v,q)});
+test('la hora no pierde dígitos ni duplica el punto',()=>{const m=js.match(/return respond\(\('Son las '\+new Date\(\)\.toLocaleTimeString\('es-PE',\{hour:'numeric',minute:'2-digit'\}\)\+'\.'\)\.replace\((\/.*?\/),'\.'\)\);/);assert.ok(m,'falta la respuesta de hora');const re=eval(m[1]);
+  assert.equal(('Son las 7:43 a. m.'+'.').replace(re,'.'),'Son las 7:43 a. m.');assert.equal(('Son las 19:43'+'.').replace(re,'.'),'Son las 19:43.')});

@@ -231,7 +231,7 @@ if(age<45000)return askAI(q,{usePhoto:true});
 pendingQ=q;pendingAt=Date.now();return respond('¿Te respondo sobre la foto anterior, o tomo una foto nueva?')}
 function route(q){const lower=q.toLowerCase().trim();let m;
 if(pendingQ&&Date.now()-pendingAt<60000){const pq=pendingQ;pendingQ=null;if(WB('nueva|otra|toma(?:la)?|ahora|s[ií],? nueva').test(lower))return quickLook('ask',pq);if(WB('anterior|misma|esa|de antes|la primera|la vieja|la otra no').test(lower))return askAI(pq,{usePhoto:true})}
-if(/qu[eé] hora es|me dices la hora|dime la hora/.test(lower))return respond(('Son las '+new Date().toLocaleTimeString('es-PE',{hour:'numeric',minute:'2-digit'})+'.').replace(/..$/,'.'));
+if(/qu[eé] hora es|me dices la hora|dime la hora/.test(lower))return respond(('Son las '+new Date().toLocaleTimeString('es-PE',{hour:'numeric',minute:'2-digit'})+'.').replace(/\.\.$/,'.'));
 if(/qu[eé] (d[ií]a|fecha) es( hoy)?|a qu[eé] (d[ií]a|fecha) estamos|qu[eé] d[ií]a (es )?hoy/.test(lower))return respond('Hoy es '+new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.');
 {const r=spokenMath(lower);if(r!==null)return respond('El resultado es '+r.toLocaleString('es-PE',{maximumFractionDigits:6})+'.')}
 const recent=photoData&&Date.now()-photoAt<180000;
