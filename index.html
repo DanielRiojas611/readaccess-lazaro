@@ -148,7 +148,7 @@ function loadImageFile(f,cb){let im=new Image(),u=URL.createObjectURL(f);im.onlo
 $('photo').addEventListener('change',()=>{let f=$('photo').files?.[0];if(!f)return;if(!f.type.startsWith('image/'))return note('Archivo no compatible.',true);loadImageFile(f,()=>note('Foto cargada. Puedes preguntar sobre ella.',true))});
 
 /* ---------- Un solo toque: ¿Qué hay delante? / Leer texto ---------- */
-async function quickLook(kind,custom){if(busy)return note('Espera un momento, estoy terminando.',true);busy=true;let ok=false;try{mode=kind==='ask'?'chat':kind;cue('start');const opened=stream?true:await openCamera(true);if(!opened)return;await sayAsync(kind==='read'?'Apunta la cámara al texto, a un palmo de distancia. Tomo la foto en un momento.':'Apunta el teléfono hacia delante. Tomo la foto en un momento.');if(!(await videoReady()))return note('La cámara no respondió. Inténtalo otra vez.',true);await wait(600);ok=capture()}finally{if(!liveTimer)stopCamera(true);busy=false}if(!ok)return;
+async function quickLook(kind,custom){if(busy)return note('Espera un momento, estoy terminando.',true);busy=true;let ok=false;try{mode=kind==='ask'?'chat':kind;cue('start');const opened=stream?true:((await ensurePerm('camera'))&&await openCamera(true));if(!opened)return;await sayAsync(kind==='read'?'Apunta la cámara al texto, a un palmo de distancia. Tomo la foto en un momento.':'Apunta el teléfono hacia delante. Tomo la foto en un momento.');if(!(await videoReady()))return note('La cámara no respondió. Inténtalo otra vez.',true);await wait(600);ok=capture()}finally{if(!liveTimer)stopCamera(true);busy=false}if(!ok)return;
 const q=kind==='read'?'Lee todo el texto visible, en orden. Si no hay texto, dilo.':kind==='experience'?'Describe esta escena de forma evocadora y detallada, distinguiendo lo visible de lo que no puedes comprobar.':'¿Qué hay delante de mí?';const done=await askAI(custom||q,{image:true,silentFail:kind==='read',mode:kind==='ask'?'chat':undefined});if(done&&kind==='explore')offerAt=Date.now();if(!done&&kind==='read'){note('Leyendo sin internet, puede tardar.');await doOCR()}}
 
 /* ---------- OCR local (Tesseract) ---------- */
@@ -198,7 +198,7 @@ const dirName=h=>DIRS[Math.round(((h%360)+360)%360/45)%8];
 // Ubicación robusta: GPS preciso -> si tarda (interiores) ubicación por wifi/red -> si todo falla, última conocida.
 const getPos=o=>new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,o));
 async function placeName(lat,lon){try{const c=new AbortController(),t=setTimeout(()=>c.abort(),6500);const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat='+lat+'&lon='+lon+'&zoom=18&addressdetails=1',{signal:c.signal,headers:{'Accept-Language':'es'}});clearTimeout(t);if(!r.ok)return '';const a=(await r.json()).address||{};return [a.road||a.pedestrian||a.neighbourhood,a.suburb||a.city_district,a.city||a.town||a.state].filter(Boolean).join(', ')}catch{return ''}}
-async function locate(){if(!navigator.geolocation)return note('Este teléfono no permite usar la ubicación aquí.',true);cue('work');note('Buscando tu ubicación.');pending++;
+async function locate(){if(!navigator.geolocation)return note('Este teléfono no permite usar la ubicación aquí.',true);if(!(await ensurePerm('geolocation')))return;cue('work');note('Buscando tu ubicación.');pending++;
 try{let p,approx=false;
 try{p=await getPos({enableHighAccuracy:true,timeout:8000,maximumAge:30000})}
 catch(e){if(e.code===1)throw e;note('El GPS tarda dentro de edificios. Uso la ubicación por wifi y red.');approx=true;p=await getPos({enableHighAccuracy:false,timeout:12000,maximumAge:300000})}
@@ -268,6 +268,7 @@ if(/(letra|fuente) (del tel[eé]fono|normal de siempre|original)/.test(lower))re
 if(/(desactiva|quita|apaga|sin) (la )?lectura f[aá]cil/.test(lower))return setEasy(false);
 if(/lectura f[aá]cil/.test(lower))return setEasy(true);
 if(/^(?:l[aá]zaro,?\s*)?(contin[uú]a|sigue)( leyendo| la lectura| el documento)?[.!]?$|d[oó]nde (lo )?(dejaste|dej[eé]|qued[eéó])/.test(lower))return resumeReading();
+if(/(revisa|configura|activa|dar|dame|da|pide|pedir) (los |mis )?permisos|permisos/.test(lower))return setupPerms();
 if(/llama|pide ayuda|necesito ayuda|emergencia|auxilio/.test(lower))return $('help').click();
 if((m=lower.match(/^(?:lázaro,?\s*)?recuerda(?: que)?\s+(.+)/i)))return addNote(q.slice(q.length-m[1].length));
 if(/qu[eé] (recuerdas|notas)|mis notas/.test(lower))return readNotes();
@@ -304,7 +305,26 @@ rec.onerror=e=>{if(e.error==='no-speech'){noSpeech=true;return}if(e.error!=='abo
 rec.onend=()=>{recognizer=null;if(heard)return;setTalk('idle','Toca la pantalla y habla');if(noSpeech){misses++;if(misses<2&&handsOn())return setTimeout(()=>{if(!recognizer)listen()},300);misses=0;handsStop=true;note('Me quedo en pausa. Toca la pantalla cuando me necesites.',true)}};
 try{rec.start()}catch{recognizer=null;setTalk('idle','Toca la pantalla y habla');note('El micrófono no está disponible.',true)}}
 // Toque en la pantalla: si hablo, me callo y escucho; si escucho, paro; si es la primera vez, me presento.
-async function onTalk(){if(recognizer){handsStop=true;recognizer.abort();recognizer=null;setTalk('idle','Toca la pantalla y habla');note('En pausa.');return}if(liveTimer){stopLive();return}if(speech&&(speech.speaking||speech.pending))speech.cancel();if(!store.get('lazaro-welcomed',false)){store.set('lazaro-welcomed',true);setTalk('working','Hola…');await sayAsync('Hola, soy Lázaro. Dime qué necesitas, por ejemplo: qué hay delante. Si quieres interrumpirme, toca la pantalla.')}misses=0;listen()}
+// --- Permisos guiados por voz. Ninguna web puede concederse permisos sola (el aviso es de Chrome/Android),
+// pero Lázaro avisa ANTES de cada aviso, explica cómo pulsar Permitir con TalkBack y confirma el resultado.
+const PERMS=[
+ {k:'microphone',name:'el micrófono',why:'para escucharte',ask:async()=>{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(t=>t.stop())}},
+ {k:'camera',name:'la cámara',why:'para describirte lo que hay delante',ask:async()=>{const s=await navigator.mediaDevices.getUserMedia({video:true});s.getTracks().forEach(t=>t.stop())}},
+ {k:'geolocation',name:'la ubicación',why:'para decirte dónde estás',ask:()=>getPos({enableHighAccuracy:false,timeout:20000,maximumAge:600000})}];
+async function permState(k){try{return (await navigator.permissions.query({name:k})).state}catch{return 'prompt'}}
+const tell=async t=>{note(t);await sayAsync(t)};let promptsSaid=0;
+const PROMPT_HELP='Ahora aparecerá un aviso en la pantalla. Si usas TalkBack, desliza el dedo a la derecha hasta Permitir y toca dos veces. Si no, pide a alguien que toque Permitir. Solo hace falta una vez.';
+const DENIED_HELP=n=>'El permiso de '+n+' está bloqueado en este teléfono. Pide a tu acompañante que lo active: en Chrome, toca el candado junto a la dirección, luego Permisos, y activa '+n+'.';
+async function ensurePerm(k){const p=PERMS.find(x=>x.k===k);const st=await permState(k);if(st==='granted')return true;if(st==='denied'){cue('error');await tell(DENIED_HELP(p.name));return false}
+await tell('Necesito permiso para usar '+p.name+', '+p.why+'. '+(promptsSaid++?'Aparecerá otro aviso: toca Permitir.':PROMPT_HELP));try{await p.ask();cue('done');await tell('Listo, ya puedo usar '+p.name+'.');return true}catch(e){cue('error');await tell((await permState(k))==='denied'?DENIED_HELP(p.name):'No se concedió el permiso de '+p.name+'. Puedes intentarlo otra vez diciendo: revisa los permisos.');return false}}
+async function setupPerms(){const sts0=await Promise.all(PERMS.map(p=>permState(p.k)));if(sts0.every(s=>s==='granted')){store.set('lazaro-perms-done',true);return respond('Ya tengo todos los permisos: micrófono, cámara y ubicación.')}
+await tell('Para ayudarte necesito tres permisos: micrófono, cámara y ubicación. Te los pediré uno por uno.');for(const p of PERMS)await ensurePerm(p.k);
+const sts=await Promise.all(PERMS.map(p=>permState(p.k)));const miss=PERMS.filter((p,i)=>sts[i]!=='granted').map(p=>p.name);store.set('lazaro-perms-done',true);
+respond(miss.length?'Configuración terminada. Falta '+miss.join(' y ')+'. Cuando quieras, di: revisa los permisos.':'Todo listo. Ya tengo micrófono, cámara y ubicación.')}
+async function onTalk(){if(recognizer){handsStop=true;recognizer.abort();recognizer=null;setTalk('idle','Toca la pantalla y habla');note('En pausa.');return}if(liveTimer){stopLive();return}if(speech&&(speech.speaking||speech.pending))speech.cancel();if(!store.get('lazaro-welcomed',false)){store.set('lazaro-welcomed',true);setTalk('working','Hola…');await sayAsync('Hola, soy Lázaro. Si quieres interrumpirme, toca la pantalla.')}
+if(!store.get('lazaro-perms-done',false)){setTalk('working','Configurando…');await setupPerms();await idle();await sayAsync('Dime qué necesitas, por ejemplo: qué hay delante.')}
+else if(!(await ensurePerm('microphone'))){setTalk('idle','Toca la pantalla y habla');return}
+misses=0;listen()}
 function newChat(){history=[];saveHistory();note('Nueva conversación. Conservo tus notas.',true)}
 
 /* ---------- Vistas ---------- */
@@ -334,6 +354,6 @@ for(const id of ['fontScale','theme','fontFace','easyRead','followRead'])$(id).a
 $('resumeRead').onclick=resumeReading;$('dlText').onclick=downloadText;
 answer.addEventListener('click',e=>{const sp=e.target.closest('[data-i]');if(sp&&!srMode()&&!getSelection().toString())readFrom(Number(sp.dataset.i))});
 renderNotes();renderPeople();netUI();
-window.__lazaro={route,locate,spokenMath,askSmart,setHeading:v=>{heading=v},pickVoice,clean,isEcho,startBarge,handleUtterance,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
+window.__lazaro={route,setupPerms,ensurePerm,locate,spokenMath,askSmart,setHeading:v=>{heading=v},pickVoice,clean,isEcho,startBarge,handleUtterance,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
 })();
 </script></body></html>
