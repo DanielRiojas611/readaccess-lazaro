@@ -8,7 +8,7 @@
 .hero{width:100%;min-height:30vh;border:3px solid #8cbbe5;background:linear-gradient(135deg,#115ea3,#183d72);border-radius:28px;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;font-weight:800;font-size:1.6rem}.hero .ico{font-size:3.4rem}.hero[aria-pressed=true]{background:#236b48;border-color:#7ce1a5}
 .big{width:100%;min-height:88px;margin-top:12px;border:2px solid #5a83a6;border-radius:22px;background:#142f49;color:#fff;display:flex;align-items:center;gap:16px;padding:14px 20px;font-weight:800;font-size:1.35rem;text-align:left}.big .ico{font-size:2.1rem;flex:none}.big[aria-pressed=true]{background:#236b48;border-color:#7ce1a5}.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pair .big{font-size:1.15rem;padding:12px 14px}
 .hero:active,.big:active{transform:scale(.985)}
-.giant{width:100%;min-height:max(60vh,340px);border:3px solid #8cbbe5;background:linear-gradient(160deg,#115ea3,#183d72);border-radius:30px;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;padding:24px;font-weight:850;font-size:1.9rem;text-align:center}.giant .ico{font-size:4.5rem}.giant .hint{font-size:1rem;font-weight:500;color:#dbe9f6;line-height:1.5;max-width:22em}.giant[aria-pressed=true]{background:linear-gradient(160deg,#1f7a4d,#145c3a);border-color:#7ce1a5}.giant[data-state=working]{background:linear-gradient(160deg,#6b4d0f,#4a3508);border-color:#ffcc57}.giant:active{transform:scale(.99)}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.giant{width:100%;min-height:calc(100dvh - 24px);border:3px solid #8cbbe5;background:linear-gradient(160deg,#115ea3,#183d72);border-radius:30px;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;padding:24px;font-weight:850;font-size:1.9rem;text-align:center}.giant .ico{font-size:4.5rem}.giant .hint{font-size:1rem;font-weight:500;color:#dbe9f6;line-height:1.5;max-width:22em}.giant[aria-pressed=true]{background:linear-gradient(160deg,#1f7a4d,#145c3a);border-color:#7ce1a5}.giant[data-state=working]{background:linear-gradient(160deg,#6b4d0f,#4a3508);border-color:#ffcc57}.giant:active{transform:scale(.99)}
 #camBox{margin-bottom:12px}#camBox video{max-height:34vh}
 .answerBox{margin-top:16px;border:1px solid #315572;border-radius:16px;padding:14px 16px;background:#10273e}.answerBox h2{font-size:1rem;margin:0 0 6px;color:#bbd2e5}#answer{white-space:pre-wrap;line-height:1.6;min-height:1.6em}#answer:empty:before{content:"Aún no hay respuesta.";color:#bbd2e5}
 .panel{border:1px solid #315572;border-radius:16px;margin-top:12px;background:#10273e}.panel>summary{list-style:none;padding:18px;font-weight:800;font-size:1.15rem;min-height:60px;display:flex;justify-content:space-between;align-items:center}.panel>summary::-webkit-details-marker{display:none}.panel>summary:after{content:"+";font-size:1.5rem;color:#58c9eb}.panel[open]>summary:after{content:"–"}.panel .in{padding:0 18px 18px}.panel p{line-height:1.55}
@@ -65,13 +65,13 @@ html[data-theme=crema] .warning{color:#5c3b00;border-left-color:#b07800}html[dat
 html[data-theme=crema] :focus-visible{outline-color:#9c2a00!important}
 </style></head>
 <body><a href="#main" class="skip">Saltar al contenido</a><div class="shell">
-<header><h1>Lázaro <span class="tiny muted">ReadAccess 2.0</span></h1><span id="netBadge" class="net tiny hide">Sin conexión</span></header>
-<div id="status" role="status" aria-live="polite" class="status">Lázaro, asistente por voz para personas ciegas: describe lo que hay delante, lee textos y te dice dónde estás. Toca cualquier parte de la pantalla para empezar.</div>
+<header class="sr-only"><h1>Lázaro</h1><span id="netBadge" class="net tiny hide">Sin conexión</span></header>
+<div id="status" role="status" aria-live="polite" class="status sr-only">Toca la pantalla para hablar con Lázaro.</div>
 <main id="main">
 <!-- ===== Pantalla principal: pocas acciones, grandes, en una columna ===== -->
 <div id="home">
 <div id="camBox" class="hide"><video id="video" autoplay playsinline muted aria-hidden="true"></video></div>
-<button id="talk" class="giant" aria-pressed="false" aria-describedby="talkHint"><span class="ico" aria-hidden="true">🎙️</span><span id="talkLabel">Toca la pantalla y habla</span><span id="talkHint" class="hint">Di «¿Qué hay delante?», «Lee esto», «Describe el paisaje», «¿Dónde estoy?» o pregunta lo que quieras. Di «¿Qué puedes hacer?» para escuchar todo.</span></button>
+<button id="talk" class="giant" aria-pressed="false" aria-describedby="talkHint"><span class="ico" aria-hidden="true">🎙️</span><span id="talkLabel">Toca para hablar</span><span id="talkHint" class="hint sr-only">Di «¿Qué hay delante?», «Lee esto», «Describe el paisaje», «¿Dónde estoy?» o pregunta lo que quieras. Di «¿Qué puedes hacer?» para escuchar todo.</span></button>
 <section class="answerBox" aria-labelledby="hAns"><h2 id="hAns">Última respuesta</h2><div id="answer" aria-live="polite"></div></section>
 <p class="warning">Lázaro no reemplaza el bastón ni el perro guía. No uses sus respuestas para decidir cuándo cruzar una calle ni para evitar obstáculos. Puede equivocarse.</p>
 <button class="secondary back" id="moreBtn" aria-controls="more" style="width:100%;margin-top:14px">Opciones para el acompañante</button>
@@ -103,16 +103,11 @@ const say=(text,onDone,force=false,base=-1)=>{if(!speech||(!force&&(!$('autoSpea
 const splitParts=t=>String(t).match(/[^.!?\n]{1,220}[.!?\n]*|.{1,220}/g)||[''];
 let saying={parts:[],idx:0,base:-1,words:new Set(),t0:0,len:0};
 // Voz en español instalada en el teléfono (es-PE > es-US/419 > es-ES > cualquier es-*). Si no hay, la del sistema.
-// Solo voces INSTALADAS (localService): una voz de red puede quedar muda. Si una voz no arranca, voiceOff=true y se usa la del sistema.
-let voiceCache=null,voiceOff=false;const pickVoice=()=>{if(voiceOff)return null;if(voiceCache)return voiceCache;const vs=(speech&&speech.getVoices&&speech.getVoices())||[];const es=vs.filter(v=>v.localService&&(/^es[-_]/i.test(v.lang)||/^es$/i.test(v.lang)));const pref=['es-PE','es-US','es-419','es-MX','es-ES'];voiceCache=pref.map(p=>es.find(v=>v.lang.replace('_','-').toLowerCase()===p.toLowerCase())).find(Boolean)||es[0]||null;return voiceCache};
-if(speech&&'onvoiceschanged' in speech)speech.addEventListener('voiceschanged',()=>{voiceCache=null});
-// Vigilante: si la voz queda "hablando" mucho más de lo esperado (fallo conocido de Chrome Android), se destraba.
-setInterval(()=>{if(speech&&(speech.speaking||speech.pending)&&saying.t0&&Date.now()-saying.t0>4000+saying.len*110/Number($('voiceRate').value||1)){speech.cancel();saying.t0=0}},2000);
+// IMPORTANTE (causa raíz de la voz muda): NO asignar u.voice. En Android, Chrome lista voces en español como instaladas
+// aunque sus datos no estén descargados: al elegirlas 'habla' sin sonido. Se usa siempre la voz por defecto del teléfono.
+const pickVoice=()=>null;
 const normW=t=>String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zñ0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>1);
-const sayNow=(text,onDone,base=-1)=>{const parts=splitParts(text);const me={parts,idx:0,base,words:new Set(normW(text)),t0:Date.now(),len:String(text).length,started:false,voiced:!!pickVoice()};saying=me;if(String(text).length>40)setTimeout(startBarge,350);
-// Autocuración: si con la voz elegida no empieza a hablar en 2,5 s, se descarta esa voz y se repite con la del sistema.
-setTimeout(()=>{const act=navigator.userActivation?navigator.userActivation.hasBeenActive:true;if(act&&saying===me&&!me.started&&me.voiced&&!voiceOff){voiceOff=true;speech.cancel();setTimeout(()=>sayNow(text,onDone,base),150)}},2500);
-parts.forEach((p,i)=>{let u=new SpeechSynthesisUtterance(p);u.addEventListener('start',()=>{me.started=true;saying.idx=i;saying.t0=Date.now();saying.len=p.length});if(base>=0){u.onstart=()=>markPart(base+i);u.onboundary=e=>{if(e.name==='word')markWord(base+i,e.charIndex,e.charLength)};if(i===parts.length-1)u.addEventListener('end',()=>markPart(-1))}u.lang='es-PE';try{const vz=pickVoice();if(vz)u.voice=vz}catch{}u.rate=Number($('voiceRate').value);if(i===parts.length-1&&onDone){let fired=false;const fin=()=>{if(!fired){fired=true;onDone()}};u.onend=fin;u.onerror=fin;setTimeout(fin,Math.min(30000,1500+String(text).length*95/Number($('voiceRate').value)))}speech.speak(u)})};
+const sayNow=(text,onDone,base=-1)=>{const parts=splitParts(text);saying={parts,idx:0,base,words:new Set(normW(text)),t0:Date.now(),len:String(text).length};if(String(text).length>40)setTimeout(startBarge,350);parts.forEach((p,i)=>{let u=new SpeechSynthesisUtterance(p);u.addEventListener('start',()=>{saying.idx=i});if(base>=0){u.onstart=()=>markPart(base+i);u.onboundary=e=>{if(e.name==='word')markWord(base+i,e.charIndex,e.charLength)};if(i===parts.length-1)u.addEventListener('end',()=>markPart(-1))}u.lang='es-PE';u.rate=Number($('voiceRate').value);if(i===parts.length-1&&onDone){let fired=false;const fin=()=>{if(!fired){fired=true;onDone()}};u.onend=fin;u.onerror=fin;setTimeout(fin,Math.min(30000,1500+String(text).length*95/Number($('voiceRate').value)))}speech.speak(u)})};
 const sayAsync=t=>new Promise(r=>say(t,r));
 let pending=0;const idle=async(max=45000)=>{const t=Date.now();await wait(150);while(Date.now()-t<max&&(busy||pending>0||(speech&&(speech.speaking||speech.pending))))await wait(200)};
 const note=(s,voice=false)=>{status.textContent=s;if(voice)say(s)};
@@ -272,7 +267,7 @@ if(/(letra|fuente) (del tel[eé]fono|normal de siempre|original)/.test(lower))re
 if(/(desactiva|quita|apaga|sin) (la )?lectura f[aá]cil/.test(lower))return setEasy(false);
 if(/lectura f[aá]cil/.test(lower))return setEasy(true);
 if(/^(?:l[aá]zaro,?\s*)?(contin[uú]a|sigue)( leyendo| la lectura| el documento)?[.!]?$|d[oó]nde (lo )?(dejaste|dej[eé]|qued[eéó])/.test(lower))return resumeReading();
-if(/prueba (de )?(sonido|audio|voz)|me escuchas|se escucha|no te escucho/.test(lower)){const v=pickVoice();return respond('Prueba de sonido. Si me escuchas bien, todo está listo. Si se oye bajo o por el auricular, sube el volumen multimedia o vuelve a abrir la página. Estoy usando '+(v?'la voz '+v.name:'la voz del sistema')+'.')}
+if(/prueba (de )?(sonido|audio|voz)|me escuchas|se escucha|no te escucho/.test(lower)){const v=pickVoice();return respond('Prueba de sonido. Si me escuchas bien, todo está listo. Si se oye bajo o por el auricular, sube el volumen multimedia o vuelve a abrir la página. Uso la voz del teléfono.')}
 if(/(revisa|configura|activa|dar|dame|da|pide|pedir) (los |mis )?permisos|permisos/.test(lower))return setupPerms();
 if(/llama|pide ayuda|necesito ayuda|emergencia|auxilio/.test(lower))return $('help').click();
 if((m=lower.match(/^(?:lázaro,?\s*)?recuerda(?: que)?\s+(.+)/i)))return addNote(q.slice(q.length-m[1].length));
@@ -302,13 +297,13 @@ setTimeout(()=>{if(acted||barge!==rec)return;if(!(speech.speaking||speech.pendin
 function stopBarge(){if(barge){const b=barge;barge=null;try{b.abort()}catch{}}}
 let handsStop=false,misses=0;const handsOn=()=>$('continuous').checked&&!srMode()&&!handsStop&&!liveTimer;
 const STOP=/^(silencio|basta|pausa|para|c[aá]llate|adi[oó]s|chau|gracias( l[aá]zaro)?|eso es todo|nada m[aá]s|det[eé]nte|espera)[.!]?$/;
-async function handleUtterance(q){q=String(q).trim();misses=0;$('question').value=q;note('Escuché: '+q);if(STOP.test(q.toLowerCase())){handsStop=true;stopBarge();speech?.cancel();setTalk('idle','Toca la pantalla y habla');await sayAsync('De acuerdo. Toca la pantalla cuando me necesites.');return}setTalk('working','Un momento…');try{await route(q)}catch{}await idle();setTalk('idle','Toca la pantalla y habla');if(handsOn())setTimeout(()=>{if(handsOn()&&!recognizer)listen()},400)}
+async function handleUtterance(q){q=String(q).trim();misses=0;$('question').value=q;note('Escuché: '+q);if(STOP.test(q.toLowerCase())){handsStop=true;stopBarge();speech?.cancel();setTalk('idle','Toca para hablar');await sayAsync('De acuerdo. Toca la pantalla cuando me necesites.');return}setTalk('working','Un momento…');try{await route(q)}catch{}await idle();setTalk('idle','Toca para hablar');if(handsOn())setTimeout(()=>{if(handsOn()&&!recognizer)listen()},400)}
 function setTalk(state,label){const t=$('talk');t.setAttribute('aria-pressed',String(state==='listening'));t.dataset.state=state;$('talkLabel').textContent=label}
 function listen(){let SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){note('Este navegador no reconoce la voz. Abre Lázaro en Chrome.',true);return}if(recognizer)return;stopBarge();handsStop=false;let rec=new SR(),heard=false,noSpeech=false;recognizer=rec;rec.lang='es-PE';rec.interimResults=false;rec.maxAlternatives=1;setTalk('listening','Te escucho…');cue('start');note('Te escucho.');
 rec.onresult=e=>{heard=true;handleUtterance(e.results[0][0].transcript)};
 rec.onerror=e=>{if(e.error==='no-speech'){noSpeech=true;return}if(e.error!=='aborted'){handsStop=true;cue('error');note(e.error==='not-allowed'?'Necesito permiso para usar el micrófono. Pide a tu acompañante que lo active.':'No te entendí. Toca la pantalla y vuelve a intentarlo.',true)}};
-rec.onend=()=>{recognizer=null;if(heard)return;setTalk('idle','Toca la pantalla y habla');if(noSpeech){misses++;if(misses<2&&handsOn())return setTimeout(()=>{if(!recognizer)listen()},300);misses=0;handsStop=true;note('Me quedo en pausa. Toca la pantalla cuando me necesites.',true)}};
-try{rec.start()}catch{recognizer=null;setTalk('idle','Toca la pantalla y habla');note('El micrófono no está disponible.',true)}}
+rec.onend=()=>{recognizer=null;if(heard)return;setTalk('idle','Toca para hablar');if(noSpeech){misses++;if(misses<2&&handsOn())return setTimeout(()=>{if(!recognizer)listen()},300);misses=0;handsStop=true;note('Me quedo en pausa. Toca la pantalla cuando me necesites.',true)}};
+try{rec.start()}catch{recognizer=null;setTalk('idle','Toca para hablar');note('El micrófono no está disponible.',true)}}
 // Toque en la pantalla: si hablo, me callo y escucho; si escucho, paro; si es la primera vez, me presento.
 // --- Permisos guiados por voz. Ninguna web puede concederse permisos sola (el aviso es de Chrome/Android),
 // pero Lázaro avisa ANTES de cada aviso, explica cómo pulsar Permitir con TalkBack y confirma el resultado.
@@ -328,9 +323,9 @@ async function setupPerms(){const sts0=await Promise.all(PERMS.map(p=>permState(
 await tell('Para ayudarte necesito tres permisos: micrófono, cámara y ubicación. Te los pediré uno por uno.');for(const p of PERMS)await ensurePerm(p.k);
 const sts=await Promise.all(PERMS.map(p=>permState(p.k)));const miss=PERMS.filter((p,i)=>sts[i]!=='granted').map(p=>p.name);store.set('lazaro-perms-done',true);
 respond(miss.length?'Configuración terminada. Falta '+miss.join(' y ')+'. Cuando quieras, di: revisa los permisos.':'Todo listo. Ya tengo micrófono, cámara y ubicación.')}
-async function onTalk(){if(recognizer){handsStop=true;recognizer.abort();recognizer=null;setTalk('idle','Toca la pantalla y habla');note('En pausa.');return}if(liveTimer){stopLive();return}if(speech&&(speech.speaking||speech.pending))speech.cancel();if(!store.get('lazaro-welcomed',false)){store.set('lazaro-welcomed',true);setTalk('working','Hola…');await sayAsync('Hola, soy Lázaro. Si quieres interrumpirme, toca la pantalla.')}
+async function onTalk(){if(recognizer){handsStop=true;recognizer.abort();recognizer=null;setTalk('idle','Toca para hablar');note('En pausa.');return}if(liveTimer){stopLive();return}if(speech&&(speech.speaking||speech.pending))speech.cancel();if(!store.get('lazaro-welcomed',false)){store.set('lazaro-welcomed',true);setTalk('working','Hola…');await sayAsync('Hola, soy Lázaro. Si quieres interrumpirme, toca la pantalla.')}
 if(!store.get('lazaro-perms-done',false)){setTalk('working','Configurando…');await setupPerms();await idle();await sayAsync('Dime qué necesitas, por ejemplo: qué hay delante.')}
-else{if(!(await ensurePerm('microphone'))){setTalk('idle','Toca la pantalla y habla');return}await sayAsync('Te escucho.')}
+else{if(!(await ensurePerm('microphone'))){setTalk('idle','Toca para hablar');return}await sayAsync('Te escucho.')}
 misses=0;listen()}
 function newChat(){history=[];saveHistory();note('Nueva conversación. Conservo tus notas.',true)}
 
@@ -361,7 +356,6 @@ for(const id of ['fontScale','theme','fontFace','easyRead','followRead'])$(id).a
 $('resumeRead').onclick=resumeReading;$('dlText').onclick=downloadText;
 answer.addEventListener('click',e=>{const sp=e.target.closest('[data-i]');if(sp&&!srMode()&&!getSelection().toString())readFrom(Number(sp.dataset.i))});
 renderNotes();renderPeople();netUI();
-setTimeout(()=>{if(speech&&!(speech.speaking||speech.pending))say(store.get('lazaro-welcomed',false)?'Lázaro listo. Toca la pantalla y dime qué necesitas.':'Hola, soy Lázaro, tu asistente por voz. Describo lo que hay delante, leo textos y te digo dónde estás. Toca cualquier parte de la pantalla para empezar.')},800);
 window.__lazaro={route,setupPerms,ensurePerm,locate,spokenMath,askSmart,setHeading:v=>{heading=v},pickVoice,clean,isEcho,startBarge,handleUtterance,onTalk,listen,idle,setPhoto,quickLook,getPin,buildState:()=>({history,photo:!!photoData}),dirName};
 })();
 </script></body></html>
